@@ -135,6 +135,18 @@ def main():
             "source_table": "dual_solvent_data",
             "target_table": "solvents_dual",
             "compound_column": "solvent_2"
+        },        
+        {
+            "db_path": "db/apiSolubilityDatabase.db",
+            "source_table": "dual_solvent_data",
+            "target_table": "compounds",
+            "compound_column": "compound_name"
+        },     
+        {
+            "db_path": "db/apiSolubilityDatabase.db",
+            "source_table": "single_solvent_data",
+            "target_table": "compounds",
+            "compound_column": "compound_name"
         }
     ]
 
