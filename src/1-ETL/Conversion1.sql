@@ -2,7 +2,7 @@ DROP TABLE IF EXISTS working_table;
 
 -- Copy the solobuility data into a working table
 CREATE TABLE working_table AS
-SELECT id,
+SELECT
 	compound_name, 
 	saturation, 
 	CASE 
@@ -136,7 +136,7 @@ DROP TABLE IF EXISTS single_solvent_data;
 
 -- Table for data with single solvent
 CREATE TABLE single_solvent_data AS
-SELECT id as solubility_data_id,
+SELECT
 	compound_name, 
 	saturation,
 	solubility_mol_mol,
@@ -153,7 +153,6 @@ DROP TABLE IF EXISTS dual_solvent_data;
 
 CREATE TABLE dual_solvent_data AS
 SELECT 
-    id as solubility_data_id, 
     compound_name, 
 	solubility_mol_mol,
 	solubility_g_g,
@@ -274,7 +273,9 @@ DELETE FROM dual_solvent_data
 WHERE solvent_ratio_1_mol_mol IS NULL
     AND solvent_ratio_1_g_g IS NULL
     AND solvent_ratio_1_vol_vol IS NULL;
-    
+
+DROP TABLE solubility_data;
+
 -- Delete the current table
 DROP TABLE working_table;
 
