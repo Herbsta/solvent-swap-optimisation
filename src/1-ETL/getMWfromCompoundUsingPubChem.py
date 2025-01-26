@@ -98,9 +98,7 @@ def create_database(db_path: str, source_table: str, target_table: str, compound
     conn.close()
 
 
-
-
-if __name__ == "__main__":
+def main():
     db_configs = [
         {
             "db_path": "db/pubchemSolubilityDatabase.db",
@@ -148,3 +146,6 @@ if __name__ == "__main__":
             config["target_table"],
             config["compound_column"]
         )
+
+if __name__ == "__main__":
+    main()
