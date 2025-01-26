@@ -45,7 +45,6 @@ class ExcelToSQLite:
         
         cur.execute('''
         CREATE TABLE IF NOT EXISTS solubility_data (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
             compound_name TEXT,
             solubility REAL,
             saturation TEXT,
