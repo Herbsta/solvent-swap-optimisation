@@ -2,3 +2,4 @@ pandas
 manim
 numpy
 openpyxl
+pubchempy
