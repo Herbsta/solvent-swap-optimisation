@@ -23,8 +23,11 @@ def excel_to_sqlite(excel_path, db_path):
     print(f"Database created at: {db_path}")
     print("Tables created:", ', '.join(excel_file.sheet_names))
 
-if __name__ == "__main__":
+def main():
     input_file = "assets/BaoDataset.xlsx"
     output_db = "db/BaoSolubilityDatabase.db"
     
     excel_to_sqlite(input_file, output_db)
+
+if __name__ == "__main__":
+    main()
