@@ -168,14 +168,14 @@ WHERE comments IS NOT NULL
 AND ((solvent_ratio IS NOT NULL AND solvent_ratio != '')
 OR comments LIKE '%Ratio%');
 
-ALTER TABLE dual_solvent_data ADD COLUMN solvent_ratio_1_mol_mol REAL;
-ALTER TABLE dual_solvent_data ADD COLUMN solvent_ratio_1_g_g REAL;
-ALTER TABLE dual_solvent_data ADD COLUMN solvent_ratio_1_vol_vol REAL;
+ALTER TABLE dual_solvent_data ADD COLUMN solvent_1_mol_fraction REAL;
+ALTER TABLE dual_solvent_data ADD COLUMN solvent_1_weight_fraction REAL;
+ALTER TABLE dual_solvent_data ADD COLUMN solvent_1_vol_fraction REAL;
 
 
 
 UPDATE dual_solvent_data
-SET solvent_ratio_1_mol_mol = 
+SET solvent_1_mol_fraction = 
     CASE 
         -- Handle 'molpercent' format in parentheses
         WHEN solvent_ratio LIKE '%(% molpercent)%' THEN
@@ -235,7 +235,7 @@ WHERE solvent_ratio LIKE '%(% molpercent)%'
    OR solvent_ratio LIKE '%(% mol)%';
 
 UPDATE dual_solvent_data
-SET solvent_ratio_1_g_g = 
+SET solvent_1_weight_fraction = 
     CASE 
         -- Handle 'weight percent' format
         WHEN solvent_ratio LIKE '%(% weight percent)%' THEN
@@ -260,7 +260,7 @@ WHERE solvent_ratio LIKE '%(% weight percent)%'
    OR solvent_ratio LIKE '%:%_w/w';
 
 UPDATE dual_solvent_data
-SET solvent_ratio_1_vol_vol = CAST(
+SET solvent_1_vol_fraction = CAST(
     SUBSTR(
         solvent_ratio,
         INSTR(solvent_ratio, '(') + 1,
@@ -270,9 +270,9 @@ SET solvent_ratio_1_vol_vol = CAST(
 WHERE solvent_ratio LIKE '%(% vol percent)%';
 
 DELETE FROM dual_solvent_data
-WHERE solvent_ratio_1_mol_mol IS NULL
-    AND solvent_ratio_1_g_g IS NULL
-    AND solvent_ratio_1_vol_vol IS NULL;
+WHERE solvent_1_mol_fraction IS NULL
+    AND solvent_1_weight_fraction IS NULL
+    AND solvent_1_vol_fraction IS NULL;
 
 DROP TABLE solubility_data;
 
