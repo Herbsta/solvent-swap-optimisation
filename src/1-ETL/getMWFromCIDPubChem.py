@@ -1,6 +1,7 @@
 import sqlite3
 import pubchempy as pcp
 import logging
+import time
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -21,6 +22,7 @@ logging.info('Compounds table created or already exists.')
 
 # Function to get molecular weight from PubChem
 def get_molecular_weight(pub_chem_id):
+    time.sleep(0.2)
     compound = pcp.Compound.from_cid(pub_chem_id)
     return compound.molecular_weight
 

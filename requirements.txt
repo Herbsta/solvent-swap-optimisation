@@ -3,3 +3,4 @@ manim
 numpy
 openpyxl
 pubchempy
+urllib3
