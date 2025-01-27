@@ -16,3 +16,9 @@ ETL must occur on the provided assets, alongside processing of Bao et al. data a
 
 
 ## Feature Engineering
+
+## Variational Autoencoder
+
+## VAE Validation
+
+## Bayesian Optimisation of Latent Space
