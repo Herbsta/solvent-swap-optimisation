@@ -6,12 +6,17 @@ from dataPreparationAPI import main as mainAPI
 from dataPreparationBao import main as mainBao
 from dbCombiner import main as dbCombiner
 
+from getMWfromCompoundUsingPubChem import main as getMWfromCompoundUsingPubChem
+from getMWFromCIDPubChem import main as getMWFromCIDPubChem
+
+
 # Delete db folder if it already exists then create it again
 db_folder = os.path.join(os.getcwd(), 'db')
 if os.path.exists(db_folder):
     shutil.rmtree(db_folder)
 os.makedirs(db_folder)
 
+# Run the ETL process for each data source
 mainPubChem()
 mainAPI()
 mainBao()

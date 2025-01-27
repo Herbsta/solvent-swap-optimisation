@@ -98,9 +98,7 @@ def create_database(db_path: str, source_table: str, target_table: str, compound
     conn.close()
 
 
-
-
-if __name__ == "__main__":
+def main():
     db_configs = [
         {
             "db_path": "db/pubchemSolubilityDatabase.db",
@@ -137,6 +135,18 @@ if __name__ == "__main__":
             "source_table": "dual_solvent_data",
             "target_table": "solvents_dual",
             "compound_column": "solvent_2"
+        },        
+        {
+            "db_path": "db/apiSolubilityDatabase.db",
+            "source_table": "dual_solvent_data",
+            "target_table": "compounds",
+            "compound_column": "compound_name"
+        },     
+        {
+            "db_path": "db/apiSolubilityDatabase.db",
+            "source_table": "single_solvent_data",
+            "target_table": "compounds",
+            "compound_column": "compound_name"
         }
     ]
 
@@ -148,3 +158,6 @@ if __name__ == "__main__":
             config["target_table"],
             config["compound_column"]
         )
+
+if __name__ == "__main__":
+    main()
