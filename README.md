@@ -29,6 +29,8 @@ TODOS
 
 ## Variational Autoencoder
 
+- Predict LogS instead of S
+
 ## VAE Validation
 
 ## Bayesian Optimisation of Latent Space
