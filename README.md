@@ -14,6 +14,16 @@ ETL must occur on the provided assets, alongside processing of Bao et al. data a
 
 - Run the [main.py](src/1-ETL/main.py) within the [1-ETL](src/1-ETL/) folder
 
+TODOS
+- Find out about the failed entries
+- redo the dataPreparationPubChem script to use sql instead
+- Use MW to convert to mol per mol
+- Find Density values? - ASK THIS QUESTION
+- saturation enum - ASK THIS QUESTION
+- vol fraction - TEMPERATURE DEPENDENCE + DENSITY - ASK THIS QUESTION
+- NaCl as a solvent??? 
+- UNITS FOR solubility non existent?
+
 
 ## Feature Engineering
 
