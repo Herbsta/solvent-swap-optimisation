@@ -31,6 +31,6 @@ TODOS
 
 - Predict LogS instead of S
 
-## VAE Validation
+## VAE Validation - comparison to previous methods
 
 ## Bayesian Optimisation of Latent Space

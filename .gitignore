@@ -3,6 +3,7 @@ db/
 
 # Manim
 media/
+slides/
 __pycache__/
 partial_movie_files/
 
