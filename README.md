@@ -34,3 +34,4 @@ TODOS
 ## VAE Validation - comparison to previous methods
 
 ## Bayesian Optimisation of Latent Space
+

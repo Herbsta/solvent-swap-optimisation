@@ -1,5 +1,8 @@
 from manim import *
-from manim_slides import Slide
+from manim_slides import *
+
+# Step 1: manim-slides render example.py
+# Step 2: manim-slides BasicExample Scene2 etc...
 
 class SimpleTimeline(Slide):
     def construct(self):

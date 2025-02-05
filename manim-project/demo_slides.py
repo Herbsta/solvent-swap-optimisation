@@ -2,10 +2,6 @@ from manim import *  # or: from manimlib import *
 
 from manim_slides import Slide, ThreeDSlide
 
-# Step 1: manim-slides render example.py
-# Step 2: manim-slides BasicExample Scene2 etc...
-
-
 class BasicExample(Slide):
     def construct(self):
         circle = Circle(radius=3, color=BLUE)

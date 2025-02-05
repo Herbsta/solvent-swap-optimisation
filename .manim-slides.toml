@@ -1,0 +1,31 @@
+[keys.QUIT]
+name = 'QUIT'
+ids = [81]
+
+[keys.PLAY_PAUSE]
+name = 'PLAY / PAUSE'
+ids = [32]
+
+[keys.NEXT]
+name = 'NEXT'
+ids = [16777235]
+
+[keys.PREVIOUS]
+name = 'PREVIOUS'
+ids = [16777237]
+
+[keys.REVERSE]
+name = 'REVERSE'
+ids = [86]
+
+[keys.REPLAY]
+name = 'REPLAY'
+ids = [82]
+
+[keys.FULL_SCREEN]
+name = 'TOGGLE FULL SCREEN'
+ids = [70]
+
+[keys.HIDE_MOUSE]
+name = 'HIDE / SHOW MOUSE'
+ids = [72]
