@@ -16,7 +16,6 @@ ETL must occur on the provided assets, alongside processing of Bao et al. data a
 
 TODOS
 - Find out about the failed entries
-- redo the dataPreparationPubChem script to use sql instead
 - Use MW to convert to mol per mol
 - Find Density values? - ASK THIS QUESTION
 - saturation enum - ASK THIS QUESTION
