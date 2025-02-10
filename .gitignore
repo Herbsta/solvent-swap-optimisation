@@ -1,5 +1,6 @@
 venv/
-db/
+/db/
+drizzle/
 
 # Manim
 media/
