@@ -76,16 +76,16 @@ def main():
     print(f"Failed to retrieve CIDs for {len(failed_names)} compounds")
 
     # Create a new table for the failed entries
-    cursor.execute('DROP TABLE IF EXISTS failed_api_compounds;')
+    cursor.execute('DROP TABLE IF EXISTS failed_compounds;')
     cursor.execute('''
-    CREATE TABLE IF NOT EXISTS failed_api_compounds (
+    CREATE TABLE IF NOT EXISTS failed_compounds (
         compound_name TEXT PRIMARY KEY
     )
     ''')
 
     # Insert all failed names into the failed_api_compounds table
     cursor.executemany('''
-    INSERT OR REPLACE INTO failed_api_compounds (compound_name)
+    INSERT OR REPLACE INTO failed_compounds (compound_name)
     VALUES (?)
     ''', [(name,) for name in failed_names])
 
@@ -193,14 +193,14 @@ def main():
     print(f"Failed to retrieve CIDs for {len(failed_solvent_names)} solvents")
 
     # Create and populate failed_api_solvents table
-    cursor.execute('DROP TABLE IF EXISTS failed_api_solvents;')
+    cursor.execute('DROP TABLE IF EXISTS failed_solvents;')
     cursor.execute('''
-    CREATE TABLE IF NOT EXISTS failed_api_solvents (
+    CREATE TABLE IF NOT EXISTS failed_solvents (
         solvent_name TEXT PRIMARY KEY
     )
     ''')
     cursor.executemany('''
-    INSERT OR REPLACE INTO failed_api_solvents (solvent_name)
+    INSERT OR REPLACE INTO failed_solvents (solvent_name)
     VALUES (?)
     ''', [(name,) for name in failed_solvent_names])
 

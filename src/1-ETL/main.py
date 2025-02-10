@@ -6,6 +6,7 @@ from dataPreparationAPI import main as mainAPI
 from dataPreparationBao import main as mainBao
 from dbCombiner import main as dbCombiner
 from getPropertiesPubChem import main as getPropertiesPubChem
+from dataRedundancy import main as dataRedundancy
 
 # Delete db folder if it already exists then create it again
 db_folder = os.path.join(os.getcwd(), 'db')
@@ -23,6 +24,9 @@ dbCombiner()
 
 # Get properties from PubChem
 getPropertiesPubChem()
+
+# Remove all unnecessary data values
+dataRedundancy()
 
 # Convert all units to mol per mol
 
