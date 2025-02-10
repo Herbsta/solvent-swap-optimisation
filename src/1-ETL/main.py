@@ -26,7 +26,7 @@ dbCombiner()
 getPropertiesPubChem()
 
 # Remove all unnecessary data values
-# dataRedundancy()
+dataRedundancy()
 
 # Convert all units to mol per mol
 
