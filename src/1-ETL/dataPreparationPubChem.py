@@ -188,7 +188,7 @@ def main():
     # Initialize converter with paths
     converter = PubChemToSQLite(
         db_path='db/pubchemSolubilityDatabase.db',
-        sql_script_path='src/1-ETL/conversion2.sql'
+        sql_script_path='src/1-ETL/Conversion2.sql'
     )
     
     # Process all files in directory

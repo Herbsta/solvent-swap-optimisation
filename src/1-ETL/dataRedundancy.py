@@ -131,6 +131,12 @@ def execute_conversion_scripts():
         conversion4_sql = file.read()
     cursor.executescript(conversion4_sql)
     logging.info("Executed Conversion4.sql script.")
+    
+    # Read and execute Conversion5.sql
+    with open('src/1-ETL/Conversion5.sql', 'r') as file:
+        conversion5_sql = file.read()
+    cursor.executescript(conversion5_sql)
+    logging.info("Executed Conversion5.sql script.")
 
     # Commit changes and close the connection
     conn.commit()
