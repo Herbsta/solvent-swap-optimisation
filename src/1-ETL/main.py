@@ -7,6 +7,8 @@ from dataPreparationBao import main as mainBao
 from dbCombiner import main as dbCombiner
 from getPropertiesPubChem import main as getPropertiesPubChem
 from dataRedundancy import main as dataRedundancy
+from dataBaoCombiner1 import main as Bao1
+from dataBaoCombiner2 import main as Bao2
 
 # Delete db folder if it already exists then create it again
 db_folder = os.path.join(os.getcwd(), 'db')
@@ -22,11 +24,17 @@ mainBao()
 # Combine the databases
 dbCombiner()
 
+
 # Get properties from PubChem
 getPropertiesPubChem()
 
-# Remove all unnecessary data values
+# Add Bao et al. data to the mix
+Bao1()
+Bao2()
+
+# Remove all unnecessary data values & conversion
 dataRedundancy()
 
-# Convert all units to mol per mol
+
+
 

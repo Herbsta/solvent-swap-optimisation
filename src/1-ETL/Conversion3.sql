@@ -82,3 +82,33 @@ SET solvent_id = (
     WHERE lower(original_names) LIKE '%' || lower(solvent) || '%'
     LIMIT 1
 );
+
+-- for bao solubility 
+
+ALTER TABLE bao_solubility ADD COLUMN solvent_1_id INTEGER;
+ALTER TABLE bao_solubility ADD COLUMN solvent_2_id INTEGER;
+ALTER TABLE bao_solubility ADD COLUMN compound_name_id INTEGER;
+
+UPDATE bao_solubility 
+SET solvent_1_id = (
+    SELECT pubchem_id 
+    FROM solvents 
+    WHERE lower(original_names) LIKE '%' || lower(solvent_1) || '%'
+    LIMIT 1
+);
+
+UPDATE bao_solubility 
+SET solvent_2_id = (
+    SELECT pubchem_id 
+    FROM solvents 
+    WHERE lower(original_names) LIKE '%' || lower(solvent_2) || '%'
+    LIMIT 1
+);
+
+UPDATE bao_solubility 
+SET compound_name_id = (
+    SELECT pubchem_id 
+    FROM compounds 
+    WHERE lower(original_names) LIKE '%' || lower(drug) || '%'
+    LIMIT 1
+);
