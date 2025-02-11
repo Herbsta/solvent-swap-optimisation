@@ -8,7 +8,7 @@
 
 ETL must occur on the provided assets, alongside processing of Bao et al. data as this provided a stable to base the future algorithms on. 
 
-- Run the [main.py](src/1-ETL/main.py) within the [1-ETL](src/1-ETL/) folder
+- Run the [main.py](src/1-ETL/main.py) contained in the [1-ETL](src/1-ETL/) folder
 
 
 ## Feature Engineering
