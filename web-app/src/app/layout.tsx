@@ -15,7 +15,7 @@ const DESCRIPTION =
   "";
 
 export const metadata: Metadata = {
-  metadataBase: new URL("https://data-table.openstatus.dev"),
+  metadataBase: new URL("https://herbiebingham.co.uk"),
   title: TITLE,
   description: DESCRIPTION,
   twitter: {
