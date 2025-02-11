@@ -1,9 +1,5 @@
 # Solvent Swap Optimisation
 
-### Timeline for the project
-
-A manim project shows the flow of data within this project. The idea is this can be run to provide a systematic update on progress.
-
 ## Prerequisities 
 - Install the prerequisites within [requirements.txt](requirements.txt)
 - Run all files from the root directory
