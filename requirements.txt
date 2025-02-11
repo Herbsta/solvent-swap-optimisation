@@ -3,7 +3,5 @@ numpy
 openpyxl
 pubchempy
 urllib3
-
-manim
-manim-slides
-PyQt6
+matplotlib
+seaborn
