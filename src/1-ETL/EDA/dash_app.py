@@ -11,17 +11,23 @@ cursor = conn.cursor()
 # Execute the query
 cursor.execute('''
 SELECT 
-compound_id,
-solvent_1,
-solvent_2,
-GROUP_CONCAT(temperature) as temperature,	
-GROUP_CONCAT(solvent_1_weight_fraction) as solvent_weight_fraction,	
-GROUP_CONCAT(solvent_1_mol_fraction) as solvent_mol_fraction,	
-GROUP_CONCAT(solubility_mol_mol) as solubility_mol_mol,	
-GROUP_CONCAT(solubility_g_g) as solubility_g_g	
-FROM solubility
-GROUP BY compound_id, solvent_1, solvent_2
-ORDER BY compound_id, solvent_1, solvent_2
+s.compound_id,
+s.solvent_1,
+s.solvent_2,
+GROUP_CONCAT(s.temperature) as temperature,    
+GROUP_CONCAT(s.solvent_1_weight_fraction) as solvent_weight_fraction,    
+GROUP_CONCAT(s.solvent_1_mol_fraction) as solvent_mol_fraction,    
+GROUP_CONCAT(s.solubility_mol_mol) as solubility_mol_mol,    
+GROUP_CONCAT(s.solubility_g_g) as solubility_g_g,
+c.molecular_name as compound_name,
+sol1.molecular_name as solvent_1_name,
+sol2.molecular_name as solvent_2_name
+FROM solubility s
+JOIN compounds c ON s.compound_id = c.pubchem_id
+JOIN solvents sol1 ON s.solvent_1 = sol1.pubchem_id
+LEFT JOIN solvents sol2 ON s.solvent_2 = sol2.pubchem_id
+GROUP BY s.compound_id, s.solvent_1, s.solvent_2
+ORDER BY s.compound_id, s.solvent_1, s.solvent_2
 ''')
 
 results = cursor.fetchall()
@@ -51,10 +57,13 @@ for entry in results_dict:
                 'solubility_g_g': entry['solubility_g_g']
         })
         data_dict.append({
-            'compound_id': entry['compound_id'],	
-            'solvent_1': entry['solvent_1'],	
+            'compound_id': entry['compound_id'],    
+            'solvent_1': entry['solvent_1'],    
             'solvent_2': entry['solvent_2'],
-            'data': data	
+            'compound_name': entry['compound_name'],
+            'solvent_1_name': entry['solvent_1_name'],
+            'solvent_2_name': entry['solvent_2_name'],
+            'data': data    
         })
     except:
         continue
@@ -73,12 +82,14 @@ app.layout = html.Div([
         ],
         value=[]
     ),
-    dcc.Store(id='current-index', data=0)
+    dcc.Store(id='current-index', data=0),
+    html.Div(id='counter', style={'marginTop': 20})
 ])
 
 @app.callback(
     Output('solubility-chart', 'figure'),
     Output('current-index', 'data'),
+    Output('counter', 'children'),
     Input('prev-button', 'n_clicks'),
     Input('next-button', 'n_clicks'),
     Input('binary-toggle', 'value'),
@@ -108,8 +119,11 @@ def update_chart(prev_clicks, next_clicks, toggle_values, current_index):
     df = entry['data']
     
     fig = px.scatter(df, x='solvent_weight_fraction', y='solubility_g_g', color='temperature', 
-                     title=f'Solvent Weight Fraction vs Solubility (g/g) for Different Temperatures\nCompound ID: {entry["compound_id"]}, Solvent 1: {entry["solvent_1"]}, Solvent 2: {entry["solvent_2"]}')
-    return fig, current_index
+                     title=f'Solvent Weight Fraction vs Solubility (g/g) for Different Temperatures\nCompound: {entry["compound_name"]}, <br>Solvent 1: {entry["solvent_1_name"]}, <br>Solvent 2: {entry["solvent_2_name"]}')
+    
+    counter_text = f'Entry {current_index + 1} of {len(data_dict)}'
+    
+    return fig, current_index, counter_text
 
 if __name__ == '__main__':
     app.run_server(debug=True)
