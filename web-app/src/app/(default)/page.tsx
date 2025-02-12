@@ -1,3 +1,4 @@
+import { buttonVariants } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
 export default function Home() {
@@ -7,6 +8,9 @@ export default function Home() {
         <CardTitle>ETL Process</CardTitle>
       </CardHeader>
       <CardContent>
+        <a href="/download/api" className={buttonVariants({ variant: "link" })}>
+          Download database.db
+        </a>
       </CardContent>
     </Card>
   );
