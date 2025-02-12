@@ -1,5 +1,4 @@
-import { sqliteTable, AnySQLiteColumn, text, real, integer, numeric } from "drizzle-orm/sqlite-core"
-  import { sql } from "drizzle-orm"
+import { sqliteTable, text, real, integer, numeric } from "drizzle-orm/sqlite-core"
 
 export const baoSolubility = sqliteTable("bao_solubility", {
 	webOfScienceIndex: text("web_of_science_index"),
