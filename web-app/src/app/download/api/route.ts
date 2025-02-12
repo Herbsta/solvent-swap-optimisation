@@ -1,11 +1,12 @@
 import fs from 'fs';
 import { NextResponse } from 'next/server';
+import path from 'path';
 
 export const dynamic = 'force-static'
 
 export async function GET() {
 
-  const filePath = './src/db/MasterDatabase.db';
+  const filePath = path.join(process.cwd(),'./src/db/MasterDatabase.db');
 
   try {
     const fileContents = fs.readFileSync(filePath);
