@@ -140,5 +140,12 @@ SELECT
 FROM 
     combined_solubility;
 
+-- Step 1.5: Remove rows where compound_id, solvent_1, solubility_mol_mol, or solubility_g_g is NULL
+DELETE FROM solubility
+    WHERE compound_id IS NULL
+    OR solvent_1 IS NULL
+    OR solubility_mol_mol IS NULL
+    OR solubility_g_g IS NULL;
+
 -- Step 2: Drop the old table
 DROP TABLE combined_solubility;
