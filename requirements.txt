@@ -5,3 +5,4 @@ pubchempy
 urllib3
 matplotlib
 seaborn
+dash
