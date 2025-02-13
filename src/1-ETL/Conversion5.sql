@@ -2,7 +2,7 @@ UPDATE combined_solubility
 SET solvent_1_weight_fraction = 
     ROUND(
         solvent_1_mol_g_fraction * s1.molecular_weight,
-        8
+        4
     )
 FROM solvents s1
 WHERE s1.pubchem_id = combined_solubility.solvent_1
@@ -16,7 +16,7 @@ SET solvent_1_weight_fraction =
         (solvent_1_mol_fraction * s1.molecular_weight) / 
         (solvent_1_mol_fraction * s1.molecular_weight + 
          (1 - solvent_1_mol_fraction) * s2.molecular_weight),
-        8
+        4
     )
 FROM solvents s1, solvents s2
 WHERE s1.pubchem_id = combined_solubility.solvent_1
@@ -31,7 +31,7 @@ SET solvent_1_mol_fraction =
         (solvent_1_weight_fraction * s2.molecular_weight) / 
         (solvent_1_weight_fraction * s2.molecular_weight + 
          (1 - solvent_1_weight_fraction) * s1.molecular_weight),
-        8
+        4
     )
 FROM solvents s1, solvents s2
 WHERE s1.pubchem_id = combined_solubility.solvent_1
@@ -44,7 +44,7 @@ SET solubility_g_g = (
     SELECT
     ROUND(
         combined_solubility.solubility_mol_g * c.molecular_weight,
-        8
+        4
     )
     FROM compounds c
     WHERE c.pubchem_id = combined_solubility.compound_id
@@ -61,7 +61,7 @@ SET solubility_g_g = (
             WHEN combined_solubility.solvent_2 IS NULL THEN
                 ROUND(
                     combined_solubility.solubility_mol_mol * c.molecular_weight / s1.molecular_weight,
-                    8
+                    4
                 )
             -- Binary solvent system
             ELSE
@@ -71,7 +71,7 @@ SET solubility_g_g = (
                         combined_solubility.solvent_1_mol_fraction * s1.molecular_weight + 
                         (1 - combined_solubility.solvent_1_mol_fraction) * s2.molecular_weight
                     ),
-                    8
+                    4
                 )
         END
     FROM compounds c, solvents s1
@@ -96,7 +96,7 @@ SET solubility_mol_mol = (
         WHEN combined_solubility.solvent_2 IS NULL THEN
             ROUND(
                 combined_solubility.solubility_g_g * s1.molecular_weight / c.molecular_weight,
-                8
+                4
             )
         -- Binary solvent system
         ELSE
@@ -106,7 +106,7 @@ SET solubility_mol_mol = (
                     combined_solubility.solvent_1_mol_fraction * s1.molecular_weight +
                     (1 - combined_solubility.solvent_1_mol_fraction) * s2.molecular_weight
                 ) / c.molecular_weight,
-                8
+                4
             )
     END
     FROM compounds c, solvents s1

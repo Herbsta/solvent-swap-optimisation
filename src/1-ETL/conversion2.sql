@@ -472,10 +472,12 @@ SET
 WHERE solvent_ratio LIKE '% mol/kg %';
 
 DELETE FROM dual_solvent_data
-WHERE solvent_1_mol_fraction IS NULL
+WHERE (solvent_1_mol_fraction IS NULL
     AND solvent_1_weight_fraction IS NULL
-    AND solvent_1_vol_fraction IS NULL
-	AND solvent_1_mol_g IS NULL;
+    AND solvent_1_vol_fraction IS NULL)
+    OR (solvent_1_mol_fraction > 1
+    OR solvent_1_weight_fraction > 1
+    OR solvent_1_vol_fraction > 1);
 
 
 -- Delete the current table

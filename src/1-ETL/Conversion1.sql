@@ -81,10 +81,6 @@ SET
             THEN CAST(SUBSTR(comments, 
                         INSTR(comments, ':') + 2, 
                         INSTR(comments, ' g/kg') - INSTR(comments, ':') - 2) AS REAL) / 1000
-        WHEN comments LIKE '%mg/g%'
-            THEN CAST(SUBSTR(comments, 
-                        INSTR(comments, ':') + 2, 
-                        INSTR(comments, ' mg/g') - INSTR(comments, ':') - 2) AS REAL) / 1000
         WHEN comments LIKE '%g solvent dissolves%'
             THEN CAST(SUBSTR(comments, 
                         INSTR(comments, 'dissolves') + 10, 
@@ -123,7 +119,6 @@ WHERE (comments LIKE 'Solubility:%' OR comments LIKE '%dissolves%')
     AND (comments LIKE '%weight percent%' 
          OR comments LIKE '%weight-percent%'
          OR comments LIKE '%g/kg%'
-         OR comments LIKE '%mg/g%'
          OR comments LIKE '%g solvent dissolves%'
          OR comments LIKE '%p(g/100g solution)%'
          OR (comments LIKE '%g/100g%' AND comments NOT LIKE '%solution%')
@@ -210,6 +205,30 @@ SET solvent_1_mol_fraction =
                     ) AS FLOAT
                 )
             )
+        -- Handle 'x/y mol/mol' format
+        WHEN solvent_ratio LIKE '%/%_mol/mol' THEN
+            CAST(
+                SUBSTR(
+                    solvent_ratio,
+                    1,
+                    INSTR(solvent_ratio, '/') - 1
+                ) AS FLOAT
+            ) / (
+                CAST(
+                    SUBSTR(
+                        solvent_ratio,
+                        1,
+                        INSTR(solvent_ratio, '/') - 1
+                    ) AS FLOAT
+                ) +
+                CAST(
+                    SUBSTR(
+                        solvent_ratio,
+                        INSTR(solvent_ratio, '/') + 1,
+                        INSTR(solvent_ratio, ' mol/mol') - INSTR(solvent_ratio, '/') - 1
+                    ) AS FLOAT
+                )
+            )
         -- Handle 'xx:xx mol percent' format
         WHEN solvent_ratio LIKE '%:%_mol percent' THEN
             CAST(
@@ -231,8 +250,19 @@ SET solvent_1_mol_fraction =
     END
 WHERE solvent_ratio LIKE '%(% molpercent)%'
    OR solvent_ratio LIKE '%:%_mol/mol'
+   OR solvent_ratio LIKE '%/%_mol/mol'
    OR solvent_ratio LIKE '%:%_mol percent'
-   OR solvent_ratio LIKE '%(% mol)%';
+   OR solvent_ratio LIKE '%(% mol)%'
+AND solvent_ratio NOT LIKE '% l)%'
+   AND solvent_ratio NOT LIKE '% ml)%'
+   AND solvent_ratio NOT LIKE '% L)%'
+   AND solvent_ratio NOT LIKE '% mL)%'
+   AND solvent_ratio NOT LIKE '%(% mol); % l%'
+   AND solvent_ratio NOT LIKE '%(% mol); % ml%'
+   AND solvent_ratio NOT LIKE '%(% mol); % L%'
+   AND solvent_ratio NOT LIKE '%(% mol); % mL%'
+AND solvent_ratio NOT LIKE '%(% mol); % mL%';
+
 
 UPDATE dual_solvent_data
 SET solvent_1_weight_fraction = 
@@ -254,7 +284,22 @@ SET solvent_1_weight_fraction =
                     1,
                     INSTR(solvent_ratio, ':') - 1
                 ) AS FLOAT
-            ) / 100
+            ) / (
+                CAST(
+                    SUBSTR(
+                        solvent_ratio,
+                        1,
+                        INSTR(solvent_ratio, ':') - 1
+                    ) AS FLOAT
+                ) +
+                CAST(
+                    SUBSTR(
+                        solvent_ratio,
+                        INSTR(solvent_ratio, ':') + 1,
+                        INSTR(solvent_ratio, ' w/w') - INSTR(solvent_ratio, ':') - 1
+                    ) AS FLOAT
+                )
+            )
     END
 WHERE solvent_ratio LIKE '%(% weight percent)%'
    OR solvent_ratio LIKE '%:%_w/w';
@@ -270,9 +315,12 @@ SET solvent_1_vol_fraction = CAST(
 WHERE solvent_ratio LIKE '%(% vol percent)%';
 
 DELETE FROM dual_solvent_data
-WHERE solvent_1_mol_fraction IS NULL
+WHERE (solvent_1_mol_fraction IS NULL
     AND solvent_1_weight_fraction IS NULL
-    AND solvent_1_vol_fraction IS NULL;
+    AND solvent_1_vol_fraction IS NULL)
+   OR (solvent_1_mol_fraction > 1
+    OR solvent_1_weight_fraction > 1
+    OR solvent_1_vol_fraction > 1);
 
 DROP TABLE solubility_data;
 
