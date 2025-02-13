@@ -40,9 +40,6 @@ results_dict = [
     for row in results
 ]
 
-# Remove entries with null compound_id from results_dict
-results_dict = [entry for entry in results_dict if entry['compound_id'] is not None]
-
 # Close the connection
 conn.close()
 
