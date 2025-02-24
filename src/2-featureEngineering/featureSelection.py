@@ -237,34 +237,130 @@ def pca_analysis(X_train_scaled, feature_names):
     
     return pca_selected, n_components, all_component_data
 
+# Define custom selector class outside any function
+class NoiseBasedSelector(SelectFromModel):
+    """Custom feature selector that uses random noise variables as a threshold."""
+    
+    def __init__(self, estimator, noise_threshold=None, noise_feature_prefix='random_'):
+        self.noise_threshold = noise_threshold
+        self.noise_feature_prefix = noise_feature_prefix
+        super().__init__(estimator, threshold=None)
+        
+    def _get_support_mask(self):
+        # Override the method to use our custom noise-based threshold
+        if hasattr(self.estimator, 'feature_importances_'):
+            importances = self.estimator.feature_importances_
+        else:
+            importances = self.estimator.coef_[0] if len(self.estimator.coef_.shape) > 1 else self.estimator.coef_
+            
+        # Get feature names from estimator if available
+        if hasattr(self.estimator, 'feature_names_in_'):
+            feature_names = self.estimator.feature_names_in_
+            noise_indices = [i for i, name in enumerate(feature_names) 
+                           if self.noise_feature_prefix in str(name)]
+        else:
+            # Use indices directly if feature names not available
+            # This is a fallback and might not correctly identify noise features
+            feature_count = len(importances)
+            noise_indices = []
+        
+        if self.noise_threshold == 'max' and noise_indices:
+            # Use max noise importance as threshold
+            noise_importances = [importances[i] for i in noise_indices]
+            threshold = max(noise_importances) if noise_importances else 0
+        elif self.noise_threshold == 'mean' and noise_indices:
+            # Use mean noise importance as threshold
+            noise_importances = [importances[i] for i in noise_indices]
+            threshold = np.mean(noise_importances) if noise_importances else 0
+        else:
+            # Default to mean feature importance
+            threshold = np.mean(importances)
+        
+        return importances > threshold
+
 def random_forest_importance(X_train, y_train, X_test, y_test):
-    """Analyze feature importance using Random Forest"""
+    """Analyze feature importance using Random Forest with random noise variables"""
+    # Create a copy of the training data to add noise
+    X_train_with_noise = X_train.copy()
+    X_test_with_noise = X_test.copy()
+    
+    # Add random noise variables with different distributions
+    np.random.seed(42)  # For reproducibility
+    
+    # Uniform random noise [0, 1]
+    X_train_with_noise['random_uniform'] = np.random.uniform(0, 1, size=X_train.shape[0])
+    X_test_with_noise['random_uniform'] = np.random.uniform(0, 1, size=X_test.shape[0])
+    
+    # Gaussian noise (normal distribution)
+    X_train_with_noise['random_normal'] = np.random.normal(0, 1, size=X_train.shape[0])
+    X_test_with_noise['random_normal'] = np.random.normal(0, 1, size=X_test.shape[0])
+    
+    # Exponential noise
+    X_train_with_noise['random_exponential'] = np.random.exponential(1, size=X_train.shape[0])
+    X_test_with_noise['random_exponential'] = np.random.exponential(1, size=X_test.shape[0])
+    
+    # Random permutation of target (this creates a feature that has the same distribution as the target but is randomly shuffled)
+    X_train_with_noise['random_target'] = np.random.permutation(y_train.values)
+    X_test_with_noise['random_target'] = np.random.permutation(y_test.values)
+    
+    print(f"Added 4 noise variables to feature set (total: {X_train_with_noise.shape[1]} features)")
+    
     # Train Random Forest model
     rf = RandomForestRegressor(n_estimators=100, random_state=42, n_jobs=-1)
-    rf.fit(X_train, y_train)
+    rf.fit(X_train_with_noise, y_train)
+    
+    # Store feature names in the model for the NoiseBasedSelector
+    rf.feature_names_in_ = X_train_with_noise.columns
     
     # Get feature importances
     feature_importances = pd.DataFrame({
-        'Feature': X_train.columns,
+        'Feature': X_train_with_noise.columns,
         'Importance': rf.feature_importances_
     }).sort_values('Importance', ascending=False)
     
-    # Plot feature importances
-    plt.figure(figsize=(12, 10))
-    sns.barplot(x='Importance', y='Feature', data=feature_importances.head(30))
-    plt.title('Random Forest Feature Importance')
+    # Plot feature importances with noise variables highlighted
+    plt.figure(figsize=(14, 12))
+    
+    # Create a color map where noise variables are highlighted in red
+    colors = ['red' if 'random_' in feat else 'steelblue' for feat in feature_importances.head(30)['Feature']]
+    
+    ax = sns.barplot(x='Importance', y='Feature', data=feature_importances.head(30), palette=colors)
+    plt.title('Random Forest Feature Importance (with Noise Variables)', fontsize=14)
+    
+    # Add a legend
+    from matplotlib.patches import Patch
+    legend_elements = [
+        Patch(facecolor='steelblue', label='Actual Features'),
+        Patch(facecolor='red', label='Random Noise')
+    ]
+    plt.legend(handles=legend_elements, loc='lower right')
+    
     plt.tight_layout()
-    plt.savefig('output/feature_engineering/rf_importance.png', dpi=300)
+    plt.savefig('output/feature_engineering/rf_importance_with_noise.png', dpi=300)
+    
+    # Find the highest ranked noise variable
+    noise_features = [f for f in feature_importances['Feature'] if 'random_' in f]
+    highest_noise_idx = feature_importances['Feature'].tolist().index(noise_features[0])
+    highest_noise_importance = feature_importances.iloc[highest_noise_idx]['Importance']
+    
+    print(f"\nHighest ranked noise variable: {noise_features[0]} (Rank: {highest_noise_idx+1}, Importance: {highest_noise_importance:.6f})")
+    
+    # Filter features more important than the highest noise variable
+    better_than_noise = feature_importances.iloc[:highest_noise_idx]
+    print(f"Found {len(better_than_noise)} features more important than random noise")
     
     # Save feature importances
-    feature_importances.to_csv('output/feature_engineering/rf_feature_importance.csv', index=False)
+    feature_importances.to_csv('output/feature_engineering/rf_feature_importance_with_noise.csv', index=False)
     
-    # Use SelectFromModel to get relevant features
-    selector = SelectFromModel(rf, threshold='mean')
-    selector.fit(X_train, y_train)
-    selected_features = X_train.columns[selector.get_support()]
+    # Use the custom selector based on max noise importance
+    selector = NoiseBasedSelector(rf, noise_threshold='max')
+    selector.fit(X_train_with_noise, y_train)
     
-    print(f"\nRandom Forest selected {len(selected_features)} features")
+    # Get selected features (excluding noise variables)
+    all_selected = X_train_with_noise.columns[selector.get_support()]
+    selected_features = [feat for feat in all_selected if 'random_' not in feat]
+    
+    print(f"\nRandom Forest selected {len(selected_features)} features (threshold: maximum noise importance)")
     print(f"Top 10 features: {', '.join(selected_features[:10])}")
     
     # Evaluate model with selected features
@@ -283,64 +379,16 @@ def random_forest_importance(X_train, y_train, X_test, y_test):
     print(f"RMSE: {rmse:.4f}")
     print(f"R²: {r2:.4f}")
     
+    # Also try with mean noise as threshold (usually more conservative)
+    selector_mean = NoiseBasedSelector(rf, noise_threshold='mean')
+    selector_mean.fit(X_train_with_noise, y_train)
+    
+    all_selected_mean = X_train_with_noise.columns[selector_mean.get_support()]
+    selected_features_mean = [feat for feat in all_selected_mean if 'random_' not in feat]
+    
+    print(f"\nAlternative selection: {len(selected_features_mean)} features (threshold: mean noise importance)")
+    
     return selected_features, feature_importances, selector
-
-def recursive_feature_elimination(X_train, y_train, X_test, y_test):
-    """Perform Recursive Feature Elimination with Cross-Validation"""
-    # Use RF as the estimator
-    estimator = RandomForestRegressor(n_estimators=100, random_state=42, n_jobs=-1)
-    
-    # Set up RFECV
-    rfecv = RFECV(
-        estimator=estimator,
-        step=1,  # Remove one feature at a time
-        cv=5,  # 5-fold cross-validation
-        scoring='neg_mean_squared_error',
-        min_features_to_select=5,
-        n_jobs=-1
-    )
-    
-    # Fit RFECV
-    rfecv.fit(X_train, y_train)
-    
-    # Get optimal number of features
-    n_features_optimal = rfecv.n_features_
-    print(f"\nRFECV selected {n_features_optimal} optimal features")
-    
-    # Plot CV scores
-    plt.figure(figsize=(10, 6))
-    plt.xlabel("Number of features selected")
-    plt.ylabel("Negative Mean Squared Error")
-    plt.plot(range(1, len(rfecv.grid_scores_) + 1), rfecv.grid_scores_)
-    plt.axvline(x=n_features_optimal, color='r', linestyle='--', 
-               label=f'Optimal number of features: {n_features_optimal}')
-    plt.legend()
-    plt.title('Recursive Feature Elimination with Cross-Validation')
-    plt.grid(alpha=0.3)
-    plt.tight_layout()
-    plt.savefig('output/feature_engineering/rfecv_scores.png', dpi=300)
-    
-    # Get selected features
-    selected_features = X_train.columns[rfecv.support_]
-    
-    print(f"RFECV selected features: {', '.join(selected_features[:10])}")
-    
-    # Evaluate performance with selected features
-    X_train_selected = X_train[selected_features]
-    X_test_selected = X_test[selected_features]
-    
-    model = RandomForestRegressor(n_estimators=100, random_state=42, n_jobs=-1)
-    model.fit(X_train_selected, y_train)
-    
-    y_pred = model.predict(X_test_selected)
-    rmse = np.sqrt(mean_squared_error(y_test, y_pred))
-    r2 = r2_score(y_test, y_pred)
-    
-    print(f"Performance with {len(selected_features)} RFECV-selected features:")
-    print(f"RMSE: {rmse:.4f}")
-    print(f"R²: {r2:.4f}")
-    
-    return selected_features, rfecv
 
 def evaluate_final_features(X_train, y_train, X_test, y_test, selected_features):
     """Evaluate the final set of selected features"""
@@ -409,30 +457,19 @@ def main():
     print("\nPerforming PCA analysis...")
     pca, n_components, pca_components = pca_analysis(X_train_scaled, X_train.columns)
     
-    # Random Forest feature importance
-    print("\nAnalyzing Random Forest feature importance...")
+    # Random Forest feature importance with noise
+    print("\nAnalyzing Random Forest feature importance with noise variables...")
     rf_features, rf_importance, rf_selector = random_forest_importance(
         X_train_scaled, y_train, X_test_scaled, y_test
     )
     
-    # Recursive Feature Elimination
-    print("\nPerforming Recursive Feature Elimination...")
-    rfe_features, rfecv = recursive_feature_elimination(
-        X_train_scaled, y_train, X_test_scaled, y_test
-    )
-    
-    # Combine feature sets
-    combined_features = list(set(rf_features) | set(rfe_features))
-    print(f"\nCombined feature set contains {len(combined_features)} features")
-    
-    # Create final feature importance DataFrame
-    final_feature_importance = rf_importance[rf_importance['Feature'].isin(combined_features)]
-    final_feature_importance.to_csv('output/feature_engineering/final_selected_features.csv', index=False)
+    selected_features = rf_features
+    print(f"Using {len(selected_features)} features selected by Random Forest")
     
     # Evaluate final feature set
     print("\nEvaluating final feature set...")
     final_model, rmse, r2, cv_rmse = evaluate_final_features(
-        X_train_scaled, y_train, X_test_scaled, y_test, combined_features
+        X_train_scaled, y_train, X_test_scaled, y_test, selected_features
     )
     
     # Save models and transformers
@@ -440,15 +477,14 @@ def main():
     joblib.dump(scaler, 'output/feature_engineering/scaler.joblib')
     joblib.dump(encoder, 'output/feature_engineering/encoder.joblib')
     joblib.dump(rf_selector, 'output/feature_engineering/rf_selector.joblib')
-    joblib.dump(rfecv, 'output/feature_engineering/rfecv.joblib')
     joblib.dump(final_model, 'output/feature_engineering/final_model.joblib')
     
     # Save feature list
     with open('output/feature_engineering/selected_features.txt', 'w') as f:
-        f.write('\n'.join(combined_features))
+        f.write('\n'.join(selected_features))
     
     print("\nFeature engineering completed successfully!")
-    print(f"Selected {len(combined_features)} features for modeling")
+    print(f"Selected {len(selected_features)} features for modeling")
     print(f"Results saved to output/feature_engineering/")
 
 if __name__ == "__main__":
