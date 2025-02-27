@@ -1,5 +1,6 @@
 import sqlite3
 import pandas as pd
+from sklearn.preprocessing import MinMaxScaler
 
 # Connect to your SQLite database
 conn = sqlite3.connect('db\MasterDatabase.db')
@@ -27,10 +28,12 @@ WHERE
     AND fraction <> 0;
 """
 
-# Read the SQL query into a DataFrame
 df = pd.read_sql_query(query, conn)
-
-# Close the connection
 conn.close()
 
-print(df)
+# Normalise the solubility and temperature columns
+scaler = MinMaxScaler()
+
+columns_to_normalize = ['solubility', 'temperature']
+
+df[columns_to_normalize] = scaler.fit_transform(df[columns_to_normalize])
