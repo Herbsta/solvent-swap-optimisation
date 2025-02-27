@@ -1,7 +1,7 @@
 venv/
-/db/
+db/
 drizzle/
-figures/
+output/
 
 # Manim
 media/
