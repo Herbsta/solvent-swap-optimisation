@@ -3,7 +3,7 @@ import pandas as pd
 from sklearn.preprocessing import MinMaxScaler
 
 # Connect to your SQLite database
-conn = sqlite3.connect('db\MasterDatabase.db')
+conn = sqlite3.connect('db/MasterDatabase.db')
 
 query = """
 SELECT 
