@@ -1,15 +1,15 @@
 -- Select statement for all permuatations that contain H20 as a solvent
 SELECT 
     compound_id AS api,
-    solubility_g_g,
+    solubility_g_g as solubility,
     CASE 
         WHEN solvent_1 = 962 THEN solvent_2
         ELSE solvent_1
-    END AS solvent_1,
+    END AS solvent,
     CASE 
         WHEN solvent_1 = 962 THEN 1 - solvent_1_weight_fraction
         ELSE solvent_1_weight_fraction
-    END AS solvent_1_weight_fraction,
+    END AS fraction,
     temperature
 FROM
     solubility s
