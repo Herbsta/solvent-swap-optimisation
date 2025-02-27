@@ -37,7 +37,7 @@ def load_data():
     print(f"Loaded {len(df_sol)} solubility records")
     
     # Load the compound descriptors
-    excel_file = 'src/2-featureEngineering/descriptorsAPIs.xlsx'
+    excel_file = 'assets/features/descriptorsAPIs.xlsx'
     df_desc = pd.read_excel(excel_file)
     print(f"Loaded {len(df_desc)} compound descriptors")
     

@@ -133,7 +133,7 @@ def main():
     converter = ExcelToSQLite('db/apiSolubilityDatabase.db')
     
     # Process all files in current directory
-    converter.process_directory('assets/apiNameFiles')
+    converter.process_directory('assets/data/apiNameFiles')
 
     # Run the SQL script to further process the database
     sql_script_path = 'src/1-ETL/conversion1.sql'

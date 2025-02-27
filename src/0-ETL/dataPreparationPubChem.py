@@ -192,7 +192,7 @@ def main():
     )
     
     # Process all files in directory
-    converter.process_directory('assets/pubchemIDFiles')
+    converter.process_directory('assets/data/pubchemIDFiles')
 
 if __name__ == "__main__":
     main()

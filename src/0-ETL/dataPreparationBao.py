@@ -24,7 +24,7 @@ def excel_to_sqlite(excel_path, db_path):
     print("Tables created:", ', '.join(excel_file.sheet_names))
 
 def main():
-    input_file = "assets/BaoDataset.xlsx"
+    input_file = "assets/data/BaoDataset.xlsx"
     output_db = "db/BaoSolubilityDatabase.db"
     
     excel_to_sqlite(input_file, output_db)
