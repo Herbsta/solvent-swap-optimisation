@@ -6,3 +6,4 @@ urllib3
 matplotlib
 seaborn
 dash
+scikit-learn
