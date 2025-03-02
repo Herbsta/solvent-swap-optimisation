@@ -23,9 +23,9 @@ c.molecular_name as compound_name,
 sol1.molecular_name as solvent_1_name,
 sol2.molecular_name as solvent_2_name
 FROM solubility s
-JOIN compounds c ON s.compound_id = c.pubchem_id
-JOIN solvents sol1 ON s.solvent_1 = sol1.pubchem_id
-LEFT JOIN solvents sol2 ON s.solvent_2 = sol2.pubchem_id
+JOIN compounds c ON s.compound_id = c.id
+JOIN solvents sol1 ON s.solvent_1 = sol1.id
+LEFT JOIN solvents sol2 ON s.solvent_2 = sol2.id
 GROUP BY s.compound_id, s.solvent_1, s.solvent_2
 ORDER BY s.compound_id, s.solvent_1, s.solvent_2
 ''')
