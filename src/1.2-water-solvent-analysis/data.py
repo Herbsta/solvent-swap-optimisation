@@ -53,13 +53,13 @@ def domain_split(data, random_state=42):
     """Create domain-specific splits for better evaluation"""
     # Regular random split
     generic_train, generic_test = train_test_split(
-        data, test_size=0.10, random_state=random_state
+        data, test_size=0.02, random_state=random_state
     )
     
     # Split based on APIs
     unique_apis = data['api'].unique()
     api_train, api_test = train_test_split(
-        unique_apis, test_size=0.05, random_state=random_state
+        unique_apis, test_size=0.01, random_state=random_state
     )
     
     # Create masks
@@ -69,7 +69,7 @@ def domain_split(data, random_state=42):
     # Split based on solvent combinations
     unique_solvents = data.groupby('solvent').size().reset_index()
     train_solvents, test_solvents = train_test_split(
-        unique_solvents, test_size=0.10, random_state=random_state
+        unique_solvents, test_size=0.05, random_state=random_state
     )
     
     # Create solvent mask
