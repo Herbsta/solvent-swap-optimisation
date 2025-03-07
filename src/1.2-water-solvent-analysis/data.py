@@ -1,6 +1,7 @@
 import sqlite3
 import pandas as pd
 from sklearn.preprocessing import MinMaxScaler
+from sklearn.model_selection import train_test_split
 
 class SolventAnalysis:
     def __init__(self, query):
@@ -47,7 +48,47 @@ class SolventAnalysis:
     
     def get_data(self):
         return self.df
+
+def domain_split(data, random_state=42):
+    """Create domain-specific splits for better evaluation"""
+    # Regular random split
+    generic_train, generic_test = train_test_split(
+        data, test_size=0.10, random_state=random_state
+    )
     
+    # Split based on APIs
+    unique_apis = data['api'].unique()
+    api_train, api_test = train_test_split(
+        unique_apis, test_size=0.05, random_state=random_state
+    )
+    
+    # Create masks
+    api_test_mask = data['api'].isin(api_test)
+    test_new_apis = data[api_test_mask]
+    
+    # Split based on solvent combinations
+    unique_solvents = data.groupby('solvent').size().reset_index()
+    train_solvents, test_solvents = train_test_split(
+        unique_solvents, test_size=0.10, random_state=random_state
+    )
+    
+    # Create solvent mask
+    test_solvent_mask = data['solvent'].isin(test_solvents['solvent'])
+    test_new_solvents = data[test_solvent_mask & ~api_test_mask]
+    train_final = generic_train[~test_solvent_mask & ~api_test_mask]
+    
+    print(f"Train set: {len(train_final)} samples")
+    print(f"Test (generic): {len(generic_test)} samples")
+    print(f"Test (new APIs): {len(test_new_apis)} samples")
+    print(f"Test (new solvents): {len(test_new_solvents)} samples")
+    
+    return {
+        'train': train_final,
+        'test_generic': generic_test,
+        'test_new_apis': test_new_apis,
+        'test_new_solvents': test_new_solvents
+    }
+
 
 query = """
 SELECT 

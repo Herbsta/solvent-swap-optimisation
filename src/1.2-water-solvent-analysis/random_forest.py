@@ -3,55 +3,14 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 from sklearn.ensemble import RandomForestRegressor
 from sklearn.feature_selection import SelectFromModel
-from sklearn.model_selection import train_test_split
 from sklearn.metrics import mean_squared_error, r2_score
 import os
-import joblib
-from data import water
+from data import water, domain_split
 import pandas as pd
 
 # Create output directory for plots and models
 os.makedirs('output/water_feature_engineering', exist_ok=True)
 
-def domain_split(data, random_state=42):
-    """Create domain-specific splits for better evaluation"""
-    # Regular random split
-    generic_train, generic_test = train_test_split(
-        data, test_size=0.10, random_state=random_state
-    )
-    
-    # Split based on APIs
-    unique_apis = data['api'].unique()
-    api_train, api_test = train_test_split(
-        unique_apis, test_size=0.05, random_state=random_state
-    )
-    
-    # Create masks
-    api_test_mask = data['api'].isin(api_test)
-    test_new_apis = data[api_test_mask]
-    
-    # Split based on solvent combinations
-    unique_solvents = data.groupby('solvent').size().reset_index()
-    train_solvents, test_solvents = train_test_split(
-        unique_solvents, test_size=0.10, random_state=random_state
-    )
-    
-    # Create solvent mask
-    test_solvent_mask = data['solvent'].isin(test_solvents['solvent'])
-    test_new_solvents = data[test_solvent_mask & ~api_test_mask]
-    train_final = generic_train[~test_solvent_mask & ~api_test_mask]
-    
-    print(f"Train set: {len(train_final)} samples")
-    print(f"Test (generic): {len(generic_test)} samples")
-    print(f"Test (new APIs): {len(test_new_apis)} samples")
-    print(f"Test (new solvents): {len(test_new_solvents)} samples")
-    
-    return {
-        'train': train_final,
-        'test_generic': generic_test,
-        'test_new_apis': test_new_apis,
-        'test_new_solvents': test_new_solvents
-    }
 
 def prepare_features(data):
     """Prepare feature matrices X and target y"""
@@ -208,8 +167,6 @@ def main():
     
     # Save results
     print("\nSaving models and results...")
-    joblib.dump(selector, 'output/water_feature_engineering/selector.joblib')
-    joblib.dump(final_model, 'output/water_feature_engineering/final_model.joblib')
     
     importance_df.to_csv('output/water_feature_engineering/feature_importance.csv', 
                         index=False)
