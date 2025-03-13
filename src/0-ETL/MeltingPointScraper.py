@@ -109,53 +109,55 @@ def get_cas(pub_chem_id: int) -> dict:
             else:
                 raise
 
+def main():
+
+    compound_ids, solvent_ids = get_all_ids()
+
+    results = {'solvents': [], 'compounds': []}
+
+    for id in tqdm(compound_ids, desc="Processing compound IDs"):
+        cas = get_cas(id)
+        results['compounds'].append({'ID': id, 'CAS': cas})
+        
+    for id in tqdm(solvent_ids, desc="Processing solvent IDs"):
+        cas = get_cas(id)
+        results['solvents'].append({'ID': id, 'CAS': cas})
+
+    with open('db/results.json', 'w') as f:
+        json.dump(results, f, indent=4)
 
 
-compound_ids, solvent_ids = get_all_ids()
+    with open('db/results.json', 'r') as f:
+        results = json.load(f)
 
-results = {'solvents': [], 'compounds': []}
+    scraper = MeltingPointScraper()
+    for compound in tqdm(results['compounds'], desc="Processing compounds"):
+        cas = compound['CAS']
+        if cas:
+            try:
+                melting_points = scraper.get_melting_points(cas)
+                print(melting_points)
+                compound['melting_points'] = melting_points
+            except Exception as e:
+                logging.error(f"Failed to get melting points for compound {compound['ID']} with CAS {cas}: {e}")
+                compound['melting_points'] = None
 
-for id in tqdm(compound_ids, desc="Processing compound IDs"):
-    cas = get_cas(id)
-    results['compounds'].append({'ID': id, 'CAS': cas})
-    
-for id in tqdm(solvent_ids, desc="Processing solvent IDs"):
-    cas = get_cas(id)
-    results['solvents'].append({'ID': id, 'CAS': cas})
+    for solvent in tqdm(results['solvents'], desc="Processing solvents"):
+        cas = solvent['CAS']
+        if cas:
+            try:
+                melting_points = scraper.get_melting_points(cas)
+                print(melting_points)
+                solvent['melting_points'] = melting_points
+            except Exception as e:
+                logging.error(f"Failed to get melting points for solvent {solvent['ID']} with CAS {cas}: {e}")
+                solvent['melting_points'] = None
 
-with open('db/results.json', 'w') as f:
-    json.dump(results, f, indent=4)
+    scraper.close()
 
-
-with open('db/results.json', 'r') as f:
-    results = json.load(f)
-
-scraper = MeltingPointScraper()
-for compound in tqdm(results['compounds'], desc="Processing compounds"):
-    cas = compound['CAS']
-    if cas:
-        try:
-            melting_points = scraper.get_melting_points(cas)
-            print(melting_points)
-            compound['melting_points'] = melting_points
-        except Exception as e:
-            logging.error(f"Failed to get melting points for compound {compound['ID']} with CAS {cas}: {e}")
-            compound['melting_points'] = None
-
-for solvent in tqdm(results['solvents'], desc="Processing solvents"):
-    cas = solvent['CAS']
-    if cas:
-        try:
-            melting_points = scraper.get_melting_points(cas)
-            print(melting_points)
-            solvent['melting_points'] = melting_points
-        except Exception as e:
-            logging.error(f"Failed to get melting points for solvent {solvent['ID']} with CAS {cas}: {e}")
-            solvent['melting_points'] = None
-
-scraper.close()
-
-with open('assets/features/MeltingPoints.json', 'w') as f:
-    json.dump(results, f, indent=4)
+    with open('assets/features/MeltingPoints.json', 'w') as f:
+        json.dump(results, f, indent=4)
 
 
+if __name__ == "__main__":
+    main()
