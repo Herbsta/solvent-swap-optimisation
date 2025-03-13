@@ -29,8 +29,11 @@ class SolventAnalysis:
         api_df = api_df.iloc[:, 3:]
         solvent_df = solvent_df.iloc[:, 3:]
         
-        df = df.merge(api_df, left_on='api', right_on='id', how='inner').drop(columns=['id'])
-        df = df.merge(solvent_df, left_on='solvent', right_on='id', how='inner').drop(columns=['id'])
+        api_df = api_df.add_prefix('api_')
+        solvent_df = solvent_df.add_prefix('solvent_')
+        
+        df = df.merge(api_df, left_on='api', right_on='api_id', how='inner').drop(columns=['api_id'])
+        df = df.merge(solvent_df, left_on='solvent', right_on='solvent_id', how='inner').drop(columns=['solvent_id'])
         
         df.fillna(0, inplace=True)
         nunique = df.apply(pd.Series.nunique)
