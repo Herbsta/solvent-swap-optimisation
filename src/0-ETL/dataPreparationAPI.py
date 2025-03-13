@@ -136,7 +136,7 @@ def main():
     converter.process_directory('assets/data/apiNameFiles')
 
     # Run the SQL script to further process the database
-    sql_script_path = 'src/1-ETL/conversion1.sql'
+    sql_script_path = 'src/0-ETL/conversion1.sql'
     try:
         with sqlite3.connect('db/apiSolubilityDatabase.db') as conn:
             with open(sql_script_path, 'r') as sql_file:

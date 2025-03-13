@@ -121,19 +121,19 @@ def execute_conversion_scripts():
     cursor = conn.cursor()
 
     # Read and execute Conversion3.sql
-    with open('src/1-ETL/Conversion3.sql', 'r') as file:
+    with open('src/0-ETL/Conversion3.sql', 'r') as file:
         conversion3_sql = file.read()
     cursor.executescript(conversion3_sql)
     logging.info("Executed Conversion3.sql script.")
 
     # Read and execute Conversion4.sql
-    with open('src/1-ETL/Conversion4.sql', 'r') as file:
+    with open('src/0-ETL/Conversion4.sql', 'r') as file:
         conversion4_sql = file.read()
     cursor.executescript(conversion4_sql)
     logging.info("Executed Conversion4.sql script.")
     
     # Read and execute Conversion5.sql
-    with open('src/1-ETL/Conversion5.sql', 'r') as file:
+    with open('src/0-ETL/Conversion5.sql', 'r') as file:
         conversion5_sql = file.read()
     cursor.executescript(conversion5_sql)
     logging.info("Executed Conversion5.sql script.")
