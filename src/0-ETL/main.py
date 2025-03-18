@@ -41,7 +41,7 @@ dataRedundancy()
 # Combine the features
 feature_combiner()
 
-# Scrap for melting points
-melting_point_scraper()
+# # Scrap for melting points
+# melting_point_scraper()
 
-melting_point_combiner()
+# melting_point_combiner()
