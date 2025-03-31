@@ -24,8 +24,8 @@ def create_solubility_violin_plots():
         COALESCE(s2.molecular_name, 'Unknown') as solvent_2, 
         sol.solubility_g_g * 100 as solubility_g_100g
     FROM solubility sol
-    LEFT JOIN solvents s1 ON sol.solvent_1 = s1.pubchem_id
-    LEFT JOIN solvents s2 ON sol.solvent_2 = s2.pubchem_id
+    LEFT JOIN solvents s1 ON sol.solvent_1 = s1.id
+    LEFT JOIN solvents s2 ON sol.solvent_2 = s2.id
     WHERE sol.solubility_g_g IS NOT NULL
     """
     df = pd.read_sql_query(query, conn, dtype={'solubility_g_100g': np.float64})

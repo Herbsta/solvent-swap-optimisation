@@ -113,9 +113,7 @@ FROM
 WHERE 
     (solvent_2 = 962 OR solvent_1 = 962)
     AND solvent_2 IS NOT NULL
-    AND solubility <> 0
-    AND fraction <> 1
-    AND fraction <> 0;
+    AND solubility <> 0;
 """
 water = SolventAnalysis(query)
 
