@@ -10,9 +10,6 @@ from dataRedundancy import main as dataRedundancy
 from dataBaoCombiner1 import main as Bao1
 from dataBaoCombiner2 import main as Bao2
 from feature_combiner import main as feature_combiner
-from MeltingPointScraper import main as melting_point_scraper
-from meltingPointCombiner import main as melting_point_combiner
-
 # Delete db folder if it already exists then create it again
 db_folder = os.path.join(os.getcwd(), 'db')
 if os.path.exists(db_folder):
@@ -40,8 +37,3 @@ dataRedundancy()
 
 # Combine the features
 feature_combiner()
-
-# # Scrap for melting points
-# melting_point_scraper()
-
-# melting_point_combiner()
