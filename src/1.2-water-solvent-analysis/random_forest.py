@@ -11,7 +11,6 @@ import pandas as pd
 # Create output directory for plots and models
 os.makedirs('output/water_feature_engineering', exist_ok=True)
 
-
 def prepare_features(data):
     """Prepare feature matrices X and target y"""
     # Drop identifier columns
