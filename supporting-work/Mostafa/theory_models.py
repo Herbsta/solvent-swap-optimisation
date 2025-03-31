@@ -1,5 +1,3 @@
-#!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 """
 Jouyban-Acree Model for Predicting Drug Solubility in Binary Solvent Mixtures
 
