@@ -116,7 +116,7 @@ def update_chart(prev_clicks, next_clicks, toggle_values, current_index):
     df = entry['data']
     
     fig = px.scatter(df, x='solvent_weight_fraction', y='solubility_g_g', color='temperature', 
-                     title=f'Solvent Weight Fraction vs Solubility (g/g) for Different Temperatures\nCompound: {entry["compound_name"]}, <br>Solvent 1: {entry["solvent_1_name"]}, <br>Solvent 2: {entry["solvent_2_name"]}')
+                     title=f'Solvent Weight Fraction vs Solubility (g/g) for Different Temperatures<br>Compound: {entry["compound_name"]} {entry["compound_id"]}, <br>Solvent 1: {entry["solvent_1_name"]} {entry["solvent_1"]}, <br>Solvent 2: {entry["solvent_2_name"]} {entry["solvent_2"]}')
     
     counter_text = f'Entry {current_index + 1} of {len(data_dict)}'
     
