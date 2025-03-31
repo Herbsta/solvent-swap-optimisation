@@ -1,6 +1,6 @@
 import sqlite3
 import pandas as pd
-from sklearn.preprocessing import MinMaxScaler
+from sklearn.preprocessing import RobustScaler # MinMaxScaler
 from sklearn.model_selection import train_test_split
 
 # Add correlation Matrix back in
@@ -8,7 +8,7 @@ from sklearn.model_selection import train_test_split
 class SolventAnalysis:
     def __init__(self, query):
         self.query = query
-        self.scaler = MinMaxScaler()
+        self.scaler = RobustScaler() # MinMaxScaler()
         self.df = self._load_data()
         
     def _load_data(self):
