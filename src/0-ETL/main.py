@@ -9,7 +9,7 @@ from getPropertiesPubChem import main as getPropertiesPubChem
 from dataRedundancy import main as dataRedundancy
 from dataBaoCombiner1 import main as Bao1
 from dataBaoCombiner2 import main as Bao2
-from feature_combiner import main as feature_combiner
+from featureCombiner import main as featureCombiner
 # Delete db folder if it already exists then create it again
 db_folder = os.path.join(os.getcwd(), 'db')
 if os.path.exists(db_folder):
@@ -36,4 +36,4 @@ Bao2()
 dataRedundancy()
 
 # Combine the features
-feature_combiner()
+featureCombiner()
