@@ -3,6 +3,7 @@ import seaborn as sns
 import matplotlib.pyplot as plt
 import sqlite3
 import numpy as np
+import os
 
 # Set style for scientific plotting
 plt.style.use('seaborn-v0_8-paper')
@@ -15,6 +16,7 @@ def print_data_summary(df, name):
     print(f"Number of records: {len(df)}")
 
 def create_solubility_violin_plots():
+    os.makedirs('violins', exist_ok=True)
     # Connect to SQLite database
     conn = sqlite3.connect('db/MasterDatabase.db')
 
@@ -49,7 +51,7 @@ def create_solubility_violin_plots():
     ax.tick_params(axis='both', which='major', labelsize=8)
     ax.set_xticklabels(ax.get_xticklabels(), rotation=90)
     plt.tight_layout()
-    plt.savefig('output/solubility_violin_all_solvents.png', dpi=300, bbox_inches='tight')
+    plt.savefig('output/violins/solubility_violin_all_solvents.png', dpi=300, bbox_inches='tight')
     plt.close()
 
     # Plot for IQR
@@ -65,7 +67,7 @@ def create_solubility_violin_plots():
     ax.set_title('IQR of Solubility Distribution for All Solvents', fontsize=12, pad=10)
     ax.tick_params(axis='both', which='major', labelsize=8)
     plt.tight_layout()
-    plt.savefig('output/solubility_iqr_violin_all_solvents.png', dpi=300, bbox_inches='tight')
+    plt.savefig('output/violins/solubility_iqr_violin_all_solvents.png', dpi=300, bbox_inches='tight')
     plt.close()
 
     # Plot for solvent weight fraction
@@ -84,7 +86,7 @@ def create_solubility_violin_plots():
     plt.ylabel('Solvent Weight Fraction (%)', fontsize=9)
     ax.tick_params(axis='both', which='major', labelsize=8)
     plt.tight_layout()
-    plt.savefig('output/solvent_weight_violin.png', dpi=300, bbox_inches='tight')
+    plt.savefig('output/violins/solvent_weight_violin.png', dpi=300, bbox_inches='tight')
     plt.close()
 
     # Plot for temperature distribution
@@ -104,7 +106,7 @@ def create_solubility_violin_plots():
     plt.ylabel('Temperature', fontsize=9)
     ax.tick_params(axis='both', which='major', labelsize=8)
     plt.tight_layout()
-    plt.savefig('output/temperature_violin.png', dpi=300, bbox_inches='tight')
+    plt.savefig('output/violins/temperature_violin.png', dpi=300, bbox_inches='tight')
     plt.close()
 
     conn.close()
