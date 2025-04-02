@@ -56,7 +56,7 @@ class JAModelEmpirical:
                 # Load the CSV file into a dataframe
                 df = pd.read_csv(file)
                 
-                new_model = JAModelEmpirical(x_value,random_seed)
+                new_model = JAModelEmpirical(int(x_value),int(random_seed))
                 new_model.results_df = df
                 loaded.append(new_model)
         return loaded
@@ -323,6 +323,8 @@ if __name__ == "__main__":
     parser.add_argument("-s", type=int, default=42, help="Random seed for reproducibility")
     args = parser.parse_args()
 
+    # save data for values of data point numbers 5 to 12
+    
     for x in range(3,10):
         model = JAModelEmpirical(x, random_seed=args.s)
         model.curve_fitter()
