@@ -1,5 +1,4 @@
 venv/
-db/
 drizzle/
 output/
 .ipynb_checkpoints/
