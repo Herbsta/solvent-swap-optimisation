@@ -504,6 +504,9 @@ class JAModel(BaseModelEmpirical):
             }
             results.append(result)  
         
+        print(f"Number of skipped groups: {len(skipped_groups)}")
+        print(f"Number of failed groups: {len(failed_groups)}")
+        
         self.results_df = pd.DataFrame(results)
     
     def save_results(self, output_folder='output'):
@@ -745,7 +748,10 @@ class JAVHModel(BaseModelEmpirical):
                 'mape': mape,
                 'logmape': np.log10(mape) if mape > 0 else np.inf,
             }
-            results.append(result)      
+            results.append(result)
+
+        print(f"Number of skipped groups: {len(skipped_groups)}")
+        print(f"Number of failed groups: {len(failed_groups)}")  
         
         self.results_df = pd.DataFrame(results)
     
