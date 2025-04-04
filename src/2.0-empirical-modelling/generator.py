@@ -99,53 +99,75 @@ class BaseModelEmpirical:
         print(f"Min: {np.min(self.results_df['log_mape']):.4f}")
         print(f"Max: {np.max(self.results_df['log_mape']):.4f}")
     
-    def paired_t_test(self, other_model):
-        """Perform paired t-test between this model and another model."""
+    def paired_t_test(self, other_model, verbose=True):
+        """Perform paired t-test between this model and another model.
+        
+        Parameters:
+        other_model (BaseModelEmpirical): Another model to compare with
+        verbose (bool): If True, prints detailed output and shows plots. If False, returns results quietly.
+        
+        Returns:
+        tuple: (t_statistic, p_value)
+        """
         if self.results_df is None or other_model.results_df is None:
             raise ValueError("Both models must have results to perform the paired t-test.")
         
         # Merge the two dataframes on the group index
-        merged_df = pd.merge(self.results_df, other_model.results_df, on='group_index', suffixes=('_model1', '_model2'), how='inner')
+        merged_df = pd.merge(self.results_df, other_model.results_df, 
+                             on='group_index', suffixes=('_model1', '_model2'), how='inner')
         
         # Perform paired t-test on logmape values
-        t_statistic, p_value = stats.ttest_rel(merged_df['logmape_model1'], merged_df['logmape_model2'], alternative='less')
-                
-        print("\nPaired t-test results:")
-        print(f"t-statistic: {t_statistic:.4f}")
-        print(f"p-value: {p_value:.4f}")
+        t_statistic, p_value = stats.ttest_rel(merged_df['logmape_model1'], 
+                                              merged_df['logmape_model2'], 
+                                              alternative='less')
         
-        if p_value < 0.025:
-            print(f"There is a statistically significant difference with {self} having lower logmape values (p < {0.025}).")
-        else:
-            print(f"There is no statistically significant evidence that {self} has lower logmape values (p >= {0.025}).")
+        if verbose:
+            print("\nPaired t-test results:")
+            print(f"t-statistic: {t_statistic:.4f}")
+            print(f"p-value: {p_value:.4f}")
+            
+            if p_value < 0.025:
+                print(f"There is a statistically significant difference with {self} having lower logmape values (p < {0.025}).")
+            else:
+                print(f"There is no statistically significant evidence that {self} has lower logmape values (p >= {0.025}).")
 
-        # Visualize the differences
-        plt.figure(figsize=(8, 4))
+            # Calculate additional statistics for verbose mode
+            diff_mean = merged_df['logmape_model1'].mean() - merged_df['logmape_model2'].mean()
+            num_better = sum(merged_df['logmape_model1'] < merged_df['logmape_model2'])
+            total_cases = len(merged_df)
+            percentage_better = (num_better / total_cases) * 100
+            
+            print(f"\nAdditional statistics:")
+            print(f"Mean difference in logmape: {diff_mean:.4f}")
+            print(f"Cases where {self} performs better: {num_better} out of {total_cases} ({percentage_better:.1f}%)")
 
-        # Histogram of differences
-        plt.subplot(1, 2, 1)
-        
-        merged_df['diff'] = merged_df['logmape_model1'] - merged_df['logmape_model2']
-        
-        plt.hist(merged_df['diff'], bins=30, color='skyblue', edgecolor='black')
-        plt.axvline(x=0, color='red', linestyle='--')
-        plt.xlabel('Difference in logmape')
-        plt.ylabel('Frequency')
-        plt.title('Histogram of Differences')
+            # Visualize the differences
+            plt.figure(figsize=(8, 4))
 
-        # Scatter plot comparing the two sets
-        plt.subplot(1, 2, 2)
-        plt.scatter(merged_df['logmape_model1'], merged_df['logmape_model2'], alpha=0.5)
-        plt.plot([-15, 5], [-15, 5], 'r--')  # Line y=x for reference
-        plt.xlabel(f'{self}')
-        plt.ylabel(f'{other_model}')
-        plt.title('Comparison of logmape Values')
-        plt.grid(True, alpha=0.3)
+            # Histogram of differences
+            plt.subplot(1, 2, 1)
+            
+            merged_df['diff'] = merged_df['logmape_model1'] - merged_df['logmape_model2']
+            
+            plt.hist(merged_df['diff'], bins=30, color='skyblue', edgecolor='black')
+            plt.axvline(x=0, color='red', linestyle='--')
+            plt.xlabel('Difference in logmape')
+            plt.ylabel('Frequency')
+            plt.title('Histogram of Differences')
 
-        plt.tight_layout()
-        plt.show()
+            # Scatter plot comparing the two sets
+            plt.subplot(1, 2, 2)
+            plt.scatter(merged_df['logmape_model1'], merged_df['logmape_model2'], alpha=0.5)
+            plt.plot([-15, 5], [-15, 5], 'r--')  # Line y=x for reference
+            plt.xlabel(f'{self}')
+            plt.ylabel(f'{other_model}')
+            plt.title('Comparison of logmape Values')
+            plt.grid(True, alpha=0.3)
 
-        return t_statistic, p_value
+            plt.tight_layout()
+            plt.show()
+
+        return t_statistic, p_value, merged_df['mape_model1'] - merged_df['mape_model2']
     
     def curve_fitter(self):
         """To be implemented by subclasses."""
