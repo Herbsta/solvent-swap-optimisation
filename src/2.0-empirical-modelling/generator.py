@@ -12,6 +12,8 @@ import glob
 import argparse
 import scipy.stats as stats
 
+random.seed(123)
+
 # Database connection and data loading
 current_folder = os.path.dirname(os.path.abspath(__file__))
 connection = sqlite3.connect(f'{current_folder}/../../db/MasterDatabase.db')
@@ -24,6 +26,23 @@ ja_groups = [group.reset_index(drop=True) for _, group in df.groupby(['solvent_1
 # Groups for JAVH model (no temperature grouping)
 javh_groups = [group.reset_index(drop=True) for _, group in df.groupby(['solvent_1', 'solvent_2', 'compound_id'])]
 
+def uniform_sample_indices(n, k):
+    """
+    Select k indices with approximately uniform spacing from a range of n points.
+    
+    Parameters:
+    n (int): Total number of points
+    k (int): Number of points to sample
+    
+    Returns:
+    list: Sorted list of selected indices
+    """
+    if k >= n:
+        return list(range(n))
+    
+    # Calculate equal spacing between points
+    indices = [int(i * (n-1) / (k-1)) for i in range(k)] if k > 1 else [0]
+    return indices
 
 #----------------------------
 # Base Model Class
@@ -31,9 +50,8 @@ javh_groups = [group.reset_index(drop=True) for _, group in df.groupby(['solvent
 class BaseModelEmpirical:
     """Base class for empirical solubility models."""
     
-    def __init__(self, random_seed=42):
+    def __init__(self):
         self.results_df = None
-        self.random_seed = random_seed
     
     def results_describe(self):
         """Print descriptive statistics for the model results."""
@@ -393,60 +411,50 @@ class JAModel(BaseModelEmpirical):
     
     groups = ja_groups
     
-    def __init__(self, x, random_seed=42):
+    
+    def __init__(self, x):
         """Initialize the JAModel.
         
         Parameters:
         x (int): Number of data points to use for fitting, excluding endpoints
-        random_seed (int): Random seed for reproducibility
         """
-        super().__init__(random_seed)
-        self.x = x
+        super().__init__()
+        self.JA_number = x
     
     def __repr__(self):
         if self.results_df is None:
-            return f"JAModel(x={self.x}, random_seed={self.random_seed})"
+            return f"JAModel(x={self.JA_number})"
         else:
-            return f"JAModel(x={self.x}, random_seed={self.random_seed}, median mape={self.results_df['mape'].median():.4f})"
+            return f"JAModel(x={self.JA_number}, median mape={self.results_df['mape'].median():.4f})"
     
     @classmethod
     def load_from_csvs(cls, input_folder='output'):
-        """Load JAModel instances from CSV files.
-        
-        Parameters:
-        input_folder (str): Folder containing the CSV files
-        
-        Returns:
-        list: List of JAModel instances
-        """
+        """Load JAModel instances from CSV files."""
         loaded = []
 
         # Get all CSV files that match the pattern for curve fit results
-        csv_files = glob.glob(f'{input_folder}/curve_fit_results_x_is_*_random_seed_is_*.csv')
+        csv_files = glob.glob(f'{input_folder}/curve_fit_results_x_is_*.csv')
 
         # Load each file into a dictionary with keys indicating parameters
         for file in csv_files:
-            # Extract x and random_seed from filename
+            # Extract x from filename
             filename = os.path.basename(file)
-            parts = filename.replace('curve_fit_results_x_is_', '').replace('.csv', '').split('_random_seed_is_')
+            x_value = filename.replace('curve_fit_results_x_is_', '').replace('.csv', '')
             
-            if len(parts) == 2:
-                x_value, random_seed = parts                
-                # Load the CSV file into a dataframe
-                df = pd.read_csv(file)
-                
-                new_model = cls(int(x_value), int(random_seed))
-                new_model.results_df = df
-                loaded.append(new_model)
+            # Load the CSV file into a dataframe
+            df = pd.read_csv(file)
+            
+            new_model = cls(int(x_value))
+            new_model.results_df = df
+            loaded.append(new_model)
         return loaded
     
     def curve_fitter(self):
         """Fit the Jouyban-Acree model to experimental data.
         
-        The method selects x random points from each group, excluding the first and last points,
+        The method selects x uniform points from each group, excluding the first and last points,
         which are always included in the fitting.
         """
-        random.seed(self.random_seed)  # Set the random seed for reproducibility
         results = []
         failed_groups = []
         skipped_groups = []
@@ -455,21 +463,31 @@ class JAModel(BaseModelEmpirical):
 
         for gn in tqdm(range(len(self.groups)), desc="Processing groups"):
             chosen_df = self.groups[gn]
-                
-            n = len(chosen_df)
-            if n < self.x+2:  # Skip groups that don't have enough points
-                print(f"Skipping group {gn} due to insufficient data points")
-                skipped_groups.append(gn)
-                continue
-                
-            random_indices = random.sample(range(1, n-1), self.x)
-            
+                            
             solvent_2_pure = chosen_df[chosen_df['solvent_1_weight_fraction'] <= 0.01].iloc[0]['solubility_g_g']
             solvent_1_pure = chosen_df[chosen_df['solvent_1_weight_fraction'] >= 0.99].iloc[0]['solubility_g_g']
             specific_temperature = chosen_df['temperature'].iloc[0]
             
-            # Create the random dataframe with x rows plus endpoints
-            fitting_df = chosen_df.iloc[[0] + random_indices + [n-1]].reset_index(drop=True)
+            # Prepare data for Jouyban-Acree fitting at the chosen temperature
+            fitting_df = chosen_df[chosen_df['temperature'] == specific_temperature] \
+                .sort_values(by='solvent_1_weight_fraction') \
+                .reset_index(drop=True) 
+
+            n = len(fitting_df)
+            if n < self.JA_number+2:  # Skip groups that don't have enough points
+                print(f"Skipping group {gn} due to insufficient data points for JA fitting")
+                skipped_groups.append(gn)
+                continue
+
+            # Select points for Jouyban-Acree fitting - keeping endpoints and adding uniform middle points
+            if self.JA_number > 0:
+                middle_indices = uniform_sample_indices(n-2, self.JA_number)
+                middle_indices = [idx+1 for idx in middle_indices]  # Shift indices to account for endpoints
+                fitting_indices = [0] + middle_indices + [n-1]
+            else:
+                fitting_indices = [0, n-1]  # Just endpoints if JA_number = 0
+
+            fitting_df = fitting_df.iloc[fitting_indices].reset_index(drop=True)
             
             # Fit the Jouyban-Acree model
             try:
@@ -532,11 +550,7 @@ class JAModel(BaseModelEmpirical):
         self.results_df = pd.DataFrame(results)
     
     def save_results(self, output_folder='output'):
-        """Save the results to a CSV file.
-        
-        Parameters:
-        output_folder (str): Folder to save the CSV file
-        """
+        """Save the results to a CSV file."""
         if self.results_df is None:
             raise ValueError("No results available. Please run the curve_fitter method first.")
         
@@ -544,8 +558,9 @@ class JAModel(BaseModelEmpirical):
         if not os.path.exists(output_folder):
             os.makedirs(output_folder)
 
-        self.results_df.to_csv(f'{output_folder}/curve_fit_results_x_is_{self.x}_random_seed_is_{self.random_seed}.csv', index=False)
-        print(f"curve_fit_results_x_is_{self.x}_random_seed_is_{self.random_seed}.csv")
+        self.results_df.to_csv(f'{output_folder}/curve_fit_results_x_is_{self.JA_number}.csv', index=False)
+        print(f"curve_fit_results_x_is_{self.JA_number}.csv")
+    
     
     def plot(self, n):
         """Plot the experimental data and fitted model for a specific group.
@@ -597,60 +612,50 @@ class JAVHModel(BaseModelEmpirical):
     
     groups = javh_groups
     
-    def __init__(self, VH_number=3, JA_number=3, random_seed=42):
+    def __init__(self, VH_number=3, JA_number=3):
         """Initialize the JAVHModel.
         
         Parameters:
         VH_number (int): Number of data points to use for van't Hoff fitting
         JA_number (int): Number of data points to use for Jouyban-Acree fitting
-        random_seed (int): Random seed for reproducibility
         """
-        super().__init__(random_seed)
+        super().__init__()
         self.VH_number = VH_number
         self.JA_number = JA_number
     
     def __repr__(self):
         if self.results_df is None:
-            return f"JAVHModel(VH_number={self.VH_number}, JA_number={self.JA_number}, random_seed={self.random_seed})"
+            return f"JAVHModel(VH_number={self.VH_number}, JA_number={self.JA_number})"
         else:
-            return f"JAVHModel(VH_number={self.VH_number}, JA_number={self.JA_number}, random_seed={self.random_seed}, median mape={self.results_df['mape'].median():.4f})"
-    
+            return f"JAVHModel(VH_number={self.VH_number}, JA_number={self.JA_number}, median mape={self.results_df['mape'].median():.4f})"
+
     @classmethod
     def load_from_csvs(cls, input_folder='output'):
-        """Load JAVHModel instances from CSV files.
-        
-        Parameters:
-        input_folder (str): Folder containing the CSV files
-        
-        Returns:
-        list: List of JAVHModel instances
-        """
+        """Load JAVHModel instances from CSV files."""
         loaded = []
 
         # Get all CSV files that match the pattern for curve fit results
-        csv_files = glob.glob(f'{input_folder}/curve_fit_results_VH_number_is_*_JA_number_is_*_random_seed_is_*.csv')
+        csv_files = glob.glob(f'{input_folder}/curve_fit_results_VH_number_is_*_JA_number_is_*.csv')
 
         # Load each file into a dictionary with keys indicating parameters
         for file in csv_files:
-            # Extract VH_number, JA_number, and random_seed from filename
+            # Extract VH_number and JA_number from filename
             filename = os.path.basename(file)
             parts = filename.replace('curve_fit_results_VH_number_is_', '').replace('.csv', '').split('_JA_number_is_')
             
             if len(parts) == 2:
-                vh_part, rest = parts
-                ja_part, random_seed_part = rest.split('_random_seed_is_')
+                vh_part, ja_part = parts
                             
                 # Load the CSV file into a dataframe
                 df = pd.read_csv(file)
                 
-                new_model = cls(VH_number=int(vh_part), JA_number=int(ja_part), random_seed=int(random_seed_part))
+                new_model = cls(VH_number=int(vh_part), JA_number=int(ja_part))
                 new_model.results_df = df
                 loaded.append(new_model)
         return loaded
     
     def curve_fitter(self):
         """Fit the Jouyban-Acree-Van't Hoff model to experimental data."""
-        random.seed(self.random_seed)  # Set the random seed for reproducibility
         results = []
         failed_groups = []
         skipped_groups = []
@@ -669,12 +674,16 @@ class JAVHModel(BaseModelEmpirical):
                 skipped_groups.append(gn)
                 continue
 
-            # Randomly select temperature points for van't Hoff fitting
-            random_temp_indexes = random.sample(range(0, len(solvent_1_pure_samples)), self.VH_number)
+            # Select temperature points for van't Hoff fitting
+            uniform_temp_indexes = uniform_sample_indices(len(solvent_1_pure_samples), self.VH_number)
 
-            fitting_df_solvent_1 = solvent_1_pure_samples.iloc[random_temp_indexes].reset_index(drop=True)
-            fitting_df_solvent_2 = solvent_2_pure_samples.iloc[random_temp_indexes].reset_index(drop=True)
+            fitting_df_solvent_1 = solvent_1_pure_samples.iloc[uniform_temp_indexes].reset_index(drop=True)
+            fitting_df_solvent_2 = solvent_2_pure_samples.iloc[uniform_temp_indexes].reset_index(drop=True)
 
+            # This line is kept as requested
+            chosen_temp_index = random.randint(0, len(fitting_df_solvent_1)-1)
+            chosen_temp = float(fitting_df_solvent_1['temperature'].iloc[chosen_temp_index])
+            
             # Fit van't Hoff model for both pure solvents
             try:
                 params_solvent_1, pcov_solvent_1 = vh_model.fit(
@@ -700,10 +709,6 @@ class JAVHModel(BaseModelEmpirical):
             alpha1, beta1 = params_solvent_1
             alpha2, beta2 = params_solvent_2
 
-            # Choose a random temperature out of the ones used for fitting
-            chosen_temp_index = random.randint(0, len(fitting_df_solvent_1)-1)
-            chosen_temp = float(fitting_df_solvent_1['temperature'].iloc[chosen_temp_index])
-
             # Prepare data for Jouyban-Acree fitting at the chosen temperature
             fitting_df = chosen_df[chosen_df['temperature'] == chosen_temp] \
                 .sort_values(by='solvent_1_weight_fraction') \
@@ -715,9 +720,16 @@ class JAVHModel(BaseModelEmpirical):
                 skipped_groups.append(gn)
                 continue
             
-            # Select points for Jouyban-Acree fitting
-            fitting_df = fitting_df.iloc[[0] + random.sample(range(1, len(fitting_df)-1), self.JA_number) + [-1]].reset_index(drop=True)
+            # Select points for Jouyban-Acree fitting - keeping endpoints and adding uniform middle points
+            if self.JA_number > 0:
+                middle_indices = uniform_sample_indices(n-2, self.JA_number)
+                middle_indices = [idx+1 for idx in middle_indices]  # Shift indices to account for endpoints
+                fitting_indices = [0] + middle_indices + [n-1]
+            else:
+                fitting_indices = [0, n-1]  # Just endpoints if JA_number = 0
 
+            fitting_df = fitting_df.iloc[fitting_indices].reset_index(drop=True)
+            
             # Fit Jouyban-Acree-Van't Hoff model
             try:
                 params, pcov = javh_model.fit(
@@ -778,11 +790,7 @@ class JAVHModel(BaseModelEmpirical):
         self.results_df = pd.DataFrame(results)
     
     def save_results(self, output_folder='output'):
-        """Save the results to a CSV file.
-        
-        Parameters:
-        output_folder (str): Folder to save the CSV file
-        """
+        """Save the results to a CSV file."""
         if self.results_df is None:
             raise ValueError("No results available. Please run the curve_fitter method first.")
         
@@ -791,10 +799,10 @@ class JAVHModel(BaseModelEmpirical):
             os.makedirs(output_folder)
 
         self.results_df.to_csv(
-            f'{output_folder}/curve_fit_results_VH_number_is_{self.VH_number}_JA_number_is_{self.JA_number}_random_seed_is_{self.random_seed}.csv', 
+            f'{output_folder}/curve_fit_results_VH_number_is_{self.VH_number}_JA_number_is_{self.JA_number}.csv', 
             index=False
         )
-        print(f"curve_fit_results_VH_number_is_{self.VH_number}_JA_number_is_{self.JA_number}_random_seed_is_{self.random_seed}.csv")
+        print(f"curve_fit_results_VH_number_is_{self.VH_number}_JA_number_is_{self.JA_number}.csv")
     
     def plot_VH(self, n):
         """Plot the van't Hoff model for a specific group.
@@ -890,7 +898,6 @@ class JAVHModel(BaseModelEmpirical):
 #----------------------------
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Run solubility models with specified parameters.")
-    parser.add_argument("-s", type=int, default=42, help="Random seed for reproducibility")
     parser.add_argument("--model", type=str, choices=["ja", "javh", "both"], default="both", 
                        help="Which model to run: 'ja', 'javh', or 'both'")
     args = parser.parse_args()
@@ -900,7 +907,7 @@ if __name__ == "__main__":
         # Run JA model for different numbers of fitting points
         for x in range(3, 10):
             print(f"Running with x={x}")
-            model = JAModel(x=x, random_seed=args.s)
+            model = JAModel(x=x)
             model.curve_fitter()
             model.save_results()
     
@@ -910,6 +917,6 @@ if __name__ == "__main__":
         for VH_number in range(3, 10):
             for JA_number in range(3, 10):
                 print(f"Running with VH_number={VH_number}, JA_number={JA_number}")
-                model = JAVHModel(VH_number=VH_number, JA_number=JA_number, random_seed=args.s)
+                model = JAVHModel(VH_number=VH_number, JA_number=JA_number)
                 model.curve_fitter()
                 model.save_results()
