@@ -94,7 +94,7 @@ class BaseModelEmpirical:
         self.results_df['log_mape'] = np.log10(self.results_df['mape'])
 
         # Create histogram
-        plt.figure(figsize=(12, 6))
+        plt.figure(figsize=(16, 9))
         plt.hist(self.results_df['log_mape'], bins=50, alpha=0.7, color='skyblue', edgecolor='black')
         plt.xlabel('log10(MAPE)')
         plt.ylabel('Frequency')
@@ -591,7 +591,7 @@ class JAModel(BaseModelEmpirical):
         )
 
         # Plot the JA model
-        plt.figure(figsize=(10, 6))
+        plt.figure(figsize=(16*1.3/3, 9*1.3/3))
         plt.plot(x_values, jouyban_acree_fit_values, label='Jouyban-Acree Model', color='blue')
 
         # Add the experimental data points to the plot
@@ -804,7 +804,7 @@ class JAVHModel(BaseModelEmpirical):
         )
         print(f"curve_fit_results_VH_number_is_{self.VH_number}_JA_number_is_{self.JA_number}.csv")
     
-    def plot_VH(self, n):
+    def plot_VH(self, n,solvent_1=None, solvent_2=None):
         """Plot the van't Hoff model for a specific group.
         
         Parameters:
@@ -829,21 +829,20 @@ class JAVHModel(BaseModelEmpirical):
         solubility_solvent_2 = vh_model.predict(temperature_values, alpha2, beta2)
 
         # Plotting
-        plt.figure(figsize=(10, 6))
-        plt.plot(temperature_values, solubility_solvent_1, label=f'Solvent 1: {selected["solvent_1"].iloc[0]}', color='blue')
-        plt.plot(temperature_values, solubility_solvent_2, label=f'Solvent 2: {selected["solvent_2"].iloc[0]}', color='red')
+        plt.figure(figsize=(16*1.3/3, 9*1.3/3))
+        plt.plot(temperature_values, solubility_solvent_1, label=f'Solvent 1: {solvent_1 if solvent_1 else selected["solvent_1"].iloc[0]  }', color='blue')
+        plt.plot(temperature_values, solubility_solvent_2, label=f'Solvent 2: {solvent_2 if solvent_2 else selected["solvent_2"].iloc[0]}', color='red',linestyle='--')
         
         # Add the experimental data points to the plot
         pure_solvents = selected[(selected['solvent_1_weight_fraction'] >= 0.99) | (selected['solvent_1_weight_fraction'] <= 0.01)]
-        plt.scatter(pure_solvents['temperature'], pure_solvents['solubility_g_g'], label='Experimental Data', zorder=5)
+        plt.scatter(pure_solvents['temperature'], pure_solvents['solubility_g_g'], label='Experimental Data', zorder=5, color='grey')
         plt.xlabel('Temperature (K)')
         plt.ylabel('Solubility (g/g)')
-        plt.title('Solubility vs Temperature (van\'t Hoff Model)')
         plt.legend()
         plt.grid(True)
         plt.show()
     
-    def plot(self, n, temperature=298.15):
+    def plot(self, n, temperature=298.15,all_experimental_data=True):
         """Plot the Jouyban-Acree-Van't Hoff model for a specific group at a given temperature.
         
         Parameters:
@@ -871,24 +870,32 @@ class JAVHModel(BaseModelEmpirical):
             x_values, temps, alpha1, beta1, alpha2, beta2, J0, J1, J2
         )
 
-        plt.figure(figsize=(10, 6))
-        plt.plot(x_values, jouyban_acree_VH_fit_values, label='Jouyban-Acree-Van\'t Hoff Model', color='orange')
+        plt.figure(figsize=(16*1.3/3, 9*1.3/3))
+        plt.plot(x_values, jouyban_acree_VH_fit_values, label='Jouyban-Acree Model', color='blue')
         
         # Add the experimental data points to the plot
-        scatter = plt.scatter(
-            selected['solvent_1_weight_fraction'], 
-            selected['solubility_g_g'], 
-            c=selected['temperature'], 
-            cmap='viridis', 
-            label='Experimental Data', 
-            zorder=5
-        )
+        if all_experimental_data:
+            scatter = plt.scatter(
+                selected['solvent_1_weight_fraction'], 
+                selected['solubility_g_g'], 
+                c=selected['temperature'], 
+                cmap='viridis', 
+                label='Experimental Data', 
+                zorder=5
+            )
+            plt.colorbar(scatter, label='Temperature (K)', ticks=selected['temperature'].unique())
+        else:
+            scatter = plt.scatter(
+                selected[selected['temperature'] == temperature]['solvent_1_weight_fraction'], 
+                selected[selected['temperature'] == temperature]['solubility_g_g'], 
+                color='slategrey', 
+                label='Experimental Data', 
+                zorder=5
+            )
         
         plt.xlabel('Solvent 1 Weight Fraction')
         plt.ylabel('Solubility (g/g)')
-        plt.title('Solubility vs Solvent 1 Weight Fraction (JAVH Model)')
         plt.legend()
-        plt.colorbar(scatter, label='Temperature (K)', ticks=selected['temperature'].unique())
         plt.grid(True)
         plt.show()
 
