@@ -680,7 +680,6 @@ class JAVHModel(BaseModelEmpirical):
             fitting_df_solvent_1 = solvent_1_pure_samples.iloc[uniform_temp_indexes].reset_index(drop=True)
             fitting_df_solvent_2 = solvent_2_pure_samples.iloc[uniform_temp_indexes].reset_index(drop=True)
 
-            # This line is kept as requested
             chosen_temp_index = random.randint(0, len(fitting_df_solvent_1)-1)
             chosen_temp = float(fitting_df_solvent_1['temperature'].iloc[chosen_temp_index])
             
