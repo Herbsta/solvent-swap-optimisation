@@ -7,6 +7,8 @@ import numpy as np
 import sqlite3
 from typing import List, Dict, Tuple, Optional, Union, Any
 
+current_folder = os.path.dirname(os.path.abspath(__file__))
+
 
 class DataLoader:
     """Handles data loading from various sources."""
@@ -113,8 +115,54 @@ class DataLoader:
 
 class DataProcessor:
     """Processes raw data into model-ready format."""
+
+    @staticmethod
+    def CreateDataProcessor(
+        raw_data_path: str = 'curve_fit_results_x_is_6.csv',
+        system_columns: list[str] = ['solvent_1','solvent_2','compound_id','temperature']
+        ):
+        """
+        Create a DataProcessor instance with the given parameters.
+        """
+        data = DataLoader(
+            data_path=f'{current_folder}/../../output',
+            database_path=f'{current_folder}/../../db/MasterDatabase.db')
+
+        data.load_data_from_csvs(raw_data_path)
+        data.load_compound_descriptors()
+        data.load_solvent_descriptors()
+            
+        dataprocessor = DataProcessor(data.raw_data,system_columns=system_columns)
+
+        dataprocessor.create_system()
+
+        if 'compound_id' not in dataprocessor.system_columns:
+            dataprocessor.merge_compound_descriptors(
+                compound_descriptors=data.compound_descriptors,
+                compound_id_col='compound_id',
+                desc_id_col='id',
+                prefix='compound_'
+            )
+
+        if 'solvent_1' not in dataprocessor.system_columns:
+            dataprocessor.merge_solvent_descriptors(
+                solvent_descriptors=data.solvent_descriptors,
+                solvent_col='solvent_1',
+                desc_id_col='id',
+                prefix='solvent_1_'
+            )
+            
+        if 'solvent_2' not in dataprocessor.system_columns:
+            dataprocessor.merge_solvent_descriptors(
+                solvent_descriptors=data.solvent_descriptors,
+                solvent_col='solvent_1',
+                desc_id_col='id',
+                prefix='solvent_1_'
+            )
+            
+        return dataprocessor
     
-    def __init__(self, raw_data: pd.DataFrame = None):
+    def __init__(self, raw_data: pd.DataFrame = None, system_columns: List[str] = ['solvent_1','solvent_2','temperature','compound_id']):
         """
         Initialize with raw data.
         
@@ -123,6 +171,7 @@ class DataProcessor:
         """
         self.raw_data = raw_data
         self.processed_data = None
+        self.system_columns = system_columns
         
     def set_raw_data(self, raw_data: pd.DataFrame) -> None:
         """
@@ -134,13 +183,10 @@ class DataProcessor:
         self.raw_data = raw_data
         self.processed_data = None
 
-    def create_system(self, system_columns: List[str], 
-                    ) -> pd.DataFrame:
+    def create_system(self) -> pd.DataFrame:
         """
         Process raw data for modeling.
-        
-        Args:
-            system_columns: List of system condition column names            
+                  
         Returns:
             Processed DataFrame
         """
@@ -149,7 +195,7 @@ class DataProcessor:
         
         processed_data = self.raw_data.copy()
         
-        processed_data['system'] =  self.raw_data[system_columns].astype(str).agg('-'.join, axis=1)
+        processed_data['system'] =  self.raw_data[self.system_columns].astype(str).agg('-'.join, axis=1)
                 
         self.processed_data = processed_data.reset_index(drop=True)
         return processed_data
@@ -238,10 +284,22 @@ class DataProcessor:
             
         self.processed_data = df
         return self.processed_data
+
+    def get_column_names_for_split(self,
+                                   target: List[str] = ['J0','J1','J2']) -> Tuple[List[str], List[str]]:
+        if self.processed_data is None:
+            raise ValueError("Processed data not available")
+        data = self.processed_data.copy()
+
+        features = [name for name in data.columns if name not in ['group_index','solvent_1','solvent_2','compound_id'] + target]
+        features = [name for name in features if name not in ['rmse','r2','mape','logmape','group_index']]
+
+        if 'temperature' in self.system_columns: features.remove('temperature')
+
+        return features, target
     
     def split_data(self, 
                  target_columns: List[str], 
-                 feature_columns: Optional[List[str]] = None,
                  test_size: float = 0.2, 
                  random_state: int = 42) -> Tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame, pd.DataFrame]:
         """
@@ -249,7 +307,6 @@ class DataProcessor:
         
         Args:
             target_columns: List of target column names
-            feature_columns: List of feature column names (if None, uses all except targets)
             test_size: Proportion of data to use for testing
             random_state: Random seed for reproducibility
             
@@ -260,12 +317,10 @@ class DataProcessor:
         
         if self.processed_data is None:
             raise ValueError("Processed data not available")
+        
+        feature_columns, target_columns = self.get_column_names_for_split(target=target_columns)
             
         df = self.processed_data.copy()
-        
-        # Determine feature columns if not specified
-        if feature_columns is None:
-            feature_columns = [col for col in df.columns if col not in target_columns]
             
         X = df[feature_columns]
         y = df[target_columns]
@@ -278,50 +333,4 @@ class DataProcessor:
 
 
 
-current_folder = os.path.dirname(os.path.abspath(__file__))
-
-def CreateDataProcessor(
-    raw_data_path: str = 'curve_fit_results_x_is_6.csv',
-    system_columns: list[str] = ['solvent_1','solvent_2','compound_id','temperature'],
-    )-> DataProcessor:
-    """
-    Create a DataProcessor instance with the given parameters.
-    """
-    data = DataLoader(
-        data_path=f'{current_folder}/../../output',
-        database_path=f'{current_folder}/../../db/MasterDatabase.db')
-
-    data.load_data_from_csvs(raw_data_path)
-    data.load_compound_descriptors()
-    data.load_solvent_descriptors()
-        
-    dataprocessor = DataProcessor(data.raw_data)
-
-    dataprocessor.create_system(system_columns)
-
-    if 'compound_id' not in system_columns:
-        dataprocessor.merge_compound_descriptors(
-            compound_descriptors=data.compound_descriptors,
-            compound_id_col='compound_id',
-            desc_id_col='id',
-            prefix='compound_'
-        )
-
-    if 'solvent_1' not in system_columns:
-        dataprocessor.merge_solvent_descriptors(
-            solvent_descriptors=data.solvent_descriptors,
-            solvent_col='solvent_1',
-            desc_id_col='id',
-            prefix='solvent_1_'
-        )
-        
-    if 'solvent_2' not in system_columns:
-        dataprocessor.merge_solvent_descriptors(
-            solvent_descriptors=data.solvent_descriptors,
-            solvent_col='solvent_1',
-            desc_id_col='id',
-            prefix='solvent_1_'
-        )
-        
-    return dataprocessor.processed_data
         
