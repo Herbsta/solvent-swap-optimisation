@@ -1,764 +1,359 @@
-"""
-Main script for solvent swap optimization modeling.
+from data_module import DataProcessor
+from sklearn.model_selection import train_test_split
+from feature_module import FeatureProcessor
 
-This script demonstrates how to use the modular framework to build,
-train, and evaluate different models for solvent swap optimization.
-"""
-import os
-import pandas as pd
 import numpy as np
+import pandas as pd
+import tensorflow as tf
+from tensorflow.keras.models import Sequential, Model
+from tensorflow.keras.layers import Dense, Dropout, Input
+from tensorflow.keras.optimizers import Adam
+from tensorflow.keras.callbacks import EarlyStopping, ReduceLROnPlateau
+from sklearn.feature_selection import SelectKBest, f_regression, RFE
+from sklearn.ensemble import RandomForestRegressor
+from sklearn.metrics import mean_absolute_error, r2_score
+
 import matplotlib.pyplot as plt
-from typing import List, Dict, Tuple
 
-# Import modules
-from data_module import DataLoader, DataProcessor
-from feature_module import FeatureEncoder, FeatureImportance
-from model_module import NeuralNetworkModel, ForestModel, GradientBoostingModel
-from visualization_module import SolventSwapVisualizer
+class NeuralNetworkWithFeatureSelection:
+    def __init__(self, feature_selection_method='correlation', n_features=50, keep_prefixes=None):
+        """
+        Neural Network model with feature selection capabilities.
+        
+        Parameters:
+        -----------
+        feature_selection_method : str
+            Method for feature selection: 'correlation', 'f_regression', 'rfe', 'random_forest'
+        n_features : int
+            Number of features to select
+        keep_prefixes : list
+            List of column prefixes to always keep regardless of feature selection
+        """
+        self.feature_selection_method = feature_selection_method
+        self.n_features = n_features
+        self.keep_prefixes = keep_prefixes or []
+        self.feature_selector = None
+        self.selected_features = None
+        self.model = None
+        self.history = None
+    
+    def select_features(self, X, y):
+        """Select features based on specified method"""
+        print(f"Selecting top {self.n_features} features using {self.feature_selection_method} method...")
+        
+        # First, identify columns to always keep based on prefixes
+        always_keep = []
+        for prefix in self.keep_prefixes:
+            always_keep.extend([col for col in X.columns if col.startswith(prefix)])
+        always_keep = list(set(always_keep))  # Remove duplicates
+        
+        remaining_features = self.n_features
+        
+        # Get columns that are not in always_keep for selection
+        eligible_columns = [col for col in X.columns if col not in always_keep]
+        X_eligible = X[eligible_columns]
+        
+        selected_eligible = []
+        if remaining_features > 0 and len(eligible_columns) > 0:
+            if self.feature_selection_method == 'correlation':
+                # Calculate correlation between features and targets
+                correlations = []
+                for column in eligible_columns:
+                    corr = abs(np.mean([abs(np.corrcoef(X[column], y[target])[0, 1]) for target in y.columns]))
+                    correlations.append((column, corr))
+                
+                # Sort by absolute correlation and select top remaining_features
+                selected_eligible = [col for col, _ in sorted(correlations, key=lambda x: x[1], reverse=True)[:remaining_features]]
+                
+            elif self.feature_selection_method == 'f_regression':
+                # Use f_regression for feature selection
+                selector = SelectKBest(score_func=f_regression, k=min(remaining_features, len(eligible_columns)))
+                selector.fit(X_eligible, y.values)
+                self.feature_selector = selector
+                selected_eligible = X_eligible.columns[selector.get_support()].tolist()
+                
+            elif self.feature_selection_method == 'rfe':
+                # Recursive Feature Elimination
+                base_model = RandomForestRegressor(n_estimators=100, random_state=42)
+                selector = RFE(estimator=base_model, n_features_to_select=min(remaining_features, len(eligible_columns)), step=10)
+                selector.fit(X_eligible, y.values)
+                self.feature_selector = selector
+                selected_eligible = X_eligible.columns[selector.get_support()].tolist()
+                
+            elif self.feature_selection_method == 'random_forest':
+                # Random Forest feature importance
+                rf = RandomForestRegressor(n_estimators=100, random_state=42)
+                rf.fit(X_eligible, y.values)
+                importance = rf.feature_importances_
+                indices = np.argsort(importance)[::-1][:remaining_features]
+                selected_eligible = X_eligible.columns[indices].tolist()
+        
+        # Combine always_keep and selected_eligible
+        self.selected_features = always_keep + selected_eligible
+        
+        print(f"Selected {len(self.selected_features)} features ({len(always_keep)} from prefixes, {len(selected_eligible)} from selection)")
+        return X[self.selected_features]
+    
+    # The rest of your class remains unchanged
+    def build_model(self, input_dim, output_dim=3):
+        """Build neural network architecture"""
+        inputs = Input(shape=(input_dim,))
+        
+        x = Dense(256, activation='relu')(inputs)
+        x = Dropout(0.3)(x)
+        
+        x = Dense(128, activation='relu')(x)
+        x = Dropout(0.2)(x)
+        
+        x = Dense(128, activation='relu')(x)
+        x = Dropout(0.2)(x)
+        
+        x = Dense(128, activation='relu')(x)
+        x = Dropout(0.2)(x)
 
-
-class SolventSwapModeling:
-    """Main class for solvent swap modeling experiments."""
-    
-    def __init__(self, 
-               data_path: str = None,
-               database_path: str = None,
-               output_path: str = 'models'):
-        """
-        Initialize the modeling framework.
+        x = Dense(128, activation='relu')(x)
+        x = Dropout(0.2)(x)
         
-        Args:
-            data_path: Path to data files
-            database_path: Path to compound/solvent database
-            output_path: Path to save models and results
-        """
-        self.data_path = data_path
-        self.database_path = database_path
-        self.output_path = output_path
+        x = Dense(64, activation='relu')(x)
+        x = Dropout(0.2)(x)
         
-        # Create output directory if it doesn't exist
-        os.makedirs(output_path, exist_ok=True)
+        outputs = Dense(output_dim, activation='linear')(x)
         
-        # Initialize components
-        self.data_loader = DataLoader(data_path, database_path)
-        self.data_processor = DataProcessor()
-        self.feature_encoder = FeatureEncoder()
-        
-        # Data containers
-        self.raw_data = None
-        self.processed_data = None
-        self.compound_descriptors = None
-        self.solvent_descriptors = None
-        self.X_train = None
-        self.X_test = None
-        self.y_train = None
-        self.y_test = None
-        
-        # Models
-        self.models = {}
-        
-    def load_data(self) -> None:
-        """Load and prepare data for modeling."""
-        # Load raw data
-        print("Loading data...")
-        self.raw_data = self.data_loader.load_data_from_csvs()
-        print(f"Loaded {len(self.raw_data)} data points")
-        
-        # Load compound descriptors if database path is provided
-        if self.database_path:
-            print("Loading compound descriptors...")
-            self.compound_descriptors = self.data_loader.load_compound_descriptors()
-            print(f"Loaded descriptors for {len(self.compound_descriptors)} compounds")
-            
-            # Extract unique solvent IDs from data
-            solvent_ids = pd.concat([
-                self.raw_data['solvent_1'].drop_duplicates(),
-                self.raw_data['solvent_2'].drop_duplicates()
-            ]).drop_duplicates().tolist()
-            
-            print("Loading solvent descriptors...")
-            self.solvent_descriptors = self.data_loader.load_solvent_descriptors(solvent_ids)
-            print(f"Loaded descriptors for {len(self.solvent_descriptors)} solvents")
-            
-    def prepare_fixed_model_data(self, 
-                               target_columns: List[str],
-                               system_columns: List[str],
-                               test_size: float = 0.2) -> Tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame, pd.DataFrame]:
-        """
-        Prepare data for the fixed model (baseline).
-        
-        Args:
-            target_columns: List of target column names
-            system_columns: List of system parameter column names
-            test_size: Proportion of data for testing
-            
-        Returns:
-            X_train, X_test, y_train, y_test DataFrames
-        """
-        print("\nPreparing data for fixed model...")
-        
-        # Set raw data for data processor
-        self.data_processor.set_raw_data(self.raw_data)
-        
-        # Process data
-        processed_data = self.data_processor.process_data(
-            target_columns=target_columns,
-            system_columns=system_columns
+        model = Model(inputs=inputs, outputs=outputs)
+        model.compile(
+            optimizer=Adam(learning_rate=0.001),
+            loss='mse',
+            metrics=['mae']
         )
-        
-        # Create system ID feature
-        for col in system_columns:
-            self.feature_encoder.fit_one_hot_encoder(processed_data, col)
-            encoded = self.feature_encoder.transform_one_hot(processed_data, col)
-            processed_data = pd.concat([processed_data, encoded], axis=1)
-            
-        # Get feature columns
-        feature_cols = [col for col in processed_data.columns 
-                       if col.startswith(tuple(col + '_' for col in system_columns))]
-        
-        # Split data
-        X_train, X_test, y_train, y_test = self.data_processor.split_data(
-            target_columns=target_columns,
-            feature_columns=feature_cols,
-            test_size=test_size
-        )
-        
-        print(f"Created {len(feature_cols)} features for fixed model")
-        
-        # Store for later use
-        self.X_train_fixed = X_train
-        self.X_test_fixed = X_test
-        self.y_train = y_train
-        self.y_test = y_test
-        
-        return X_train, X_test, y_train, y_test
-    
-    def prepare_compound_model_data(self, 
-                                  target_columns: List[str],
-                                  system_columns: List[str],
-                                  compound_id_col: str = 'compound_id',
-                                  test_size: float = 0.2) -> Tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame, pd.DataFrame]:
-        """
-        Prepare data for the compound-encoded model.
-        
-        Args:
-            target_columns: List of target column names
-            system_columns: List of system parameter column names
-            compound_id_col: Column name for compound ID
-            test_size: Proportion of data for testing
-            
-        Returns:
-            X_train, X_test, y_train, y_test DataFrames
-        """
-        print("\nPreparing data for compound model...")
-        
-        if self.compound_descriptors is None:
-            raise ValueError("Compound descriptors not loaded. Please load data first.")
-            
-        # Set raw data for data processor
-        self.data_processor.set_raw_data(self.raw_data)
-        
-        # Process data
-        processed_data = self.data_processor.process_data(
-            target_columns=target_columns,
-            system_columns=system_columns,
-            compound_id_col=compound_id_col
-        )
-        
-        # Merge compound descriptors
-        processed_data = self.data_processor.merge_compound_descriptors(
-            compound_descriptors=self.compound_descriptors,
-            compound_id_col=compound_id_col,
-            desc_id_col='id'
-        )
-        
-        # Create system ID features
-        for col in system_columns:
-            self.feature_encoder.fit_one_hot_encoder(processed_data, col)
-            encoded = self.feature_encoder.transform_one_hot(processed_data, col)
-            processed_data = pd.concat([processed_data, encoded], axis=1)
-            
-        # Get system feature columns
-        system_feature_cols = [col for col in processed_data.columns 
-                             if col.startswith(tuple(col + '_' for col in system_columns))]
-        
-        # Get compound descriptor columns (exclude system, target, and metadata columns)
-        exclude_cols = system_columns + target_columns + [compound_id_col, 'system_id', 'id', 'canonical_smiles', 'molecular_name']
-        compound_feature_cols = [col for col in processed_data.columns 
-                               if col not in exclude_cols and not col.startswith(tuple(col + '_' for col in system_columns))]
-        
-        # Handle NaN values in compound descriptors
-        processed_data[compound_feature_cols] = processed_data[compound_feature_cols].fillna(0)
-        
-        # Scale compound descriptors
-        self.feature_encoder.fit_scaler(
-            data=processed_data,
-            columns=compound_feature_cols,
-            scaler_type='robust',
-            scaler_name='compound_descriptors'
-        )
-        
-        scaled_descriptors = self.feature_encoder.transform_scaler(
-            data=processed_data,
-            scaler_name='compound_descriptors'
-        )
-        
-        processed_data[compound_feature_cols] = scaled_descriptors
-        
-        # Combine feature columns
-        feature_cols = system_feature_cols + compound_feature_cols
-        
-        # Split data
-        X_train, X_test, y_train, y_test = self.data_processor.split_data(
-            target_columns=target_columns,
-            feature_columns=feature_cols,
-            test_size=test_size
-        )
-        
-        print(f"Created {len(feature_cols)} features for compound model")
-        print(f"- {len(system_feature_cols)} system features")
-        print(f"- {len(compound_feature_cols)} compound descriptors")
-        
-        # Store for later use
-        self.X_train_compound = X_train
-        self.X_test_compound = X_test
-        
-        return X_train, X_test, y_train, y_test
-    
-    def prepare_full_model_data(self, 
-                              target_columns: List[str],
-                              system_columns: List[str],
-                              compound_id_col: str = 'compound_id',
-                              solvent1_col: str = 'solvent_1',
-                              solvent2_col: str = 'solvent_2',
-                              test_size: float = 0.2) -> Tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame, pd.DataFrame]:
-        """
-        Prepare data for the full model with compound and solvent descriptors.
-        
-        Args:
-            target_columns: List of target column names
-            system_columns: List of system parameter column names
-            compound_id_col: Column name for compound ID
-            solvent1_col: Column name for solvent 1
-            solvent2_col: Column name for solvent 2
-            test_size: Proportion of data for testing
-            
-        Returns:
-            X_train, X_test, y_train, y_test DataFrames
-        """
-        print("\nPreparing data for full model...")
-        
-        if self.compound_descriptors is None or self.solvent_descriptors is None:
-            raise ValueError("Compound or solvent descriptors not loaded. Please load data first.")
-            
-        # Set raw data for data processor
-        self.data_processor.set_raw_data(self.raw_data)
-        
-        # Process data
-        processed_data = self.data_processor.process_data(
-            target_columns=target_columns,
-            system_columns=system_columns,
-            compound_id_col=compound_id_col
-        )
-        
-        # Merge compound descriptors
-        processed_data = self.data_processor.merge_compound_descriptors(
-            compound_descriptors=self.compound_descriptors,
-            compound_id_col=compound_id_col,
-            desc_id_col='id'
-        )
-        
-        # Merge solvent 1 descriptors
-        processed_data = self.data_processor.merge_solvent_descriptors(
-            solvent_descriptors=self.solvent_descriptors,
-            solvent_col=solvent1_col,
-            solvent_id_col='id',
-            prefix='solv1'
-        )
-        
-        # Merge solvent 2 descriptors
-        processed_data = self.data_processor.merge_solvent_descriptors(
-            solvent_descriptors=self.solvent_descriptors,
-            solvent_col=solvent2_col,
-            solvent_id_col='id',
-            prefix='solv2'
-        )
-        
-        # Create temperature feature (one-hot encode isn't appropriate for temperature)
-        if 'temperature' in system_columns:
-            self.feature_encoder.fit_scaler(
-                data=processed_data,
-                columns=['temperature'],
-                scaler_type='standard',
-                scaler_name='temperature'
-            )
-            
-            scaled_temp = self.feature_encoder.transform_scaler(
-                data=processed_data,
-                scaler_name='temperature'
-            )
-            
-            processed_data['temperature_scaled'] = scaled_temp['temperature']
-            
-            # Remove temperature from system_columns for one-hot encoding
-            system_columns_for_encoding = [col for col in system_columns if col != 'temperature']
-        else:
-            system_columns_for_encoding = system_columns
-            
-        # Create system ID features (except temperature)
-        for col in system_columns_for_encoding:
-            self.feature_encoder.fit_one_hot_encoder(processed_data, col)
-            encoded = self.feature_encoder.transform_one_hot(processed_data, col)
-            processed_data = pd.concat([processed_data, encoded], axis=1)
-            
-        # Get system feature columns
-        system_feature_cols = [col for col in processed_data.columns 
-                             if col.startswith(tuple(col + '_' for col in system_columns_for_encoding))]
-        
-        # Add temperature if scaled
-        if 'temperature' in system_columns:
-            system_feature_cols.append('temperature_scaled')
-            
-        # Get compound descriptor columns
-        exclude_cols = system_columns + target_columns + [compound_id_col, 'system_id', 'id', 
-                                                        'canonical_smiles', 'molecular_name',
-                                                        solvent1_col, solvent2_col]
-        compound_feature_cols = [col for col in processed_data.columns 
-                               if col not in exclude_cols 
-                               and not col.startswith(tuple(col + '_' for col in system_columns_for_encoding))
-                               and not col.startswith('solv1_')
-                               and not col.startswith('solv2_')]
-        
-        # Get solvent descriptor columns
-        solv1_feature_cols = [col for col in processed_data.columns if col.startswith('solv1_') 
-                             and col != 'solv1_id']
-        solv2_feature_cols = [col for col in processed_data.columns if col.startswith('solv2_') 
-                             and col != 'solv2_id']
-        
-        # Handle NaN values in all descriptors
-        all_desc_cols = compound_feature_cols + solv1_feature_cols + solv2_feature_cols
-        processed_data[all_desc_cols] = processed_data[all_desc_cols].fillna(0)
-        
-        # Scale compound descriptors
-        self.feature_encoder.fit_scaler(
-            data=processed_data,
-            columns=compound_feature_cols,
-            scaler_type='robust',
-            scaler_name='compound_descriptors_full'
-        )
-        
-        scaled_comp_desc = self.feature_encoder.transform_scaler(
-            data=processed_data,
-            scaler_name='compound_descriptors_full'
-        )
-        
-        processed_data[compound_feature_cols] = scaled_comp_desc
-        
-        # Scale solvent descriptors
-        self.feature_encoder.fit_scaler(
-            data=processed_data,
-            columns=solv1_feature_cols + solv2_feature_cols,
-            scaler_type='robust',
-            scaler_name='solvent_descriptors'
-        )
-        
-        scaled_solv_desc = self.feature_encoder.transform_scaler(
-            data=processed_data,
-            scaler_name='solvent_descriptors'
-        )
-        
-        processed_data[solv1_feature_cols + solv2_feature_cols] = scaled_solv_desc[solv1_feature_cols + solv2_feature_cols]
-        
-        # Combine feature columns
-        feature_cols = system_feature_cols + compound_feature_cols + solv1_feature_cols + solv2_feature_cols
-        
-        # Split data
-        X_train, X_test, y_train, y_test = self.data_processor.split_data(
-            target_columns=target_columns,
-            feature_columns=feature_cols,
-            test_size=test_size
-        )
-        
-        print(f"Created {len(feature_cols)} features for full model")
-        print(f"- {len(system_feature_cols)} system features")
-        print(f"- {len(compound_feature_cols)} compound descriptors")
-        print(f"- {len(solv1_feature_cols)} solvent 1 descriptors")
-        print(f"- {len(solv2_feature_cols)} solvent 2 descriptors")
-        
-        # Store for later use
-        self.X_train_full = X_train
-        self.X_test_full = X_test
-        
-        return X_train, X_test, y_train, y_test
-    
-    def train_fixed_model(self, model_type: str = 'nn', **kwargs) -> None:
-        """
-        Train a model using only system parameters.
-        
-        Args:
-            model_type: Type of model ('nn', 'rf', 'gb')
-            **kwargs: Additional model parameters
-        """
-        if self.X_train_fixed is None:
-            raise ValueError("Fixed model data not prepared. Run prepare_fixed_model_data first.")
-            
-        print(f"\nTraining {model_type} model on fixed data...")
-        
-        # Create model
-        if model_type.lower() == 'nn':
-            model = NeuralNetworkModel(name="fixed_nn", **kwargs)
-        elif model_type.lower() == 'rf':
-            model = ForestModel(name="fixed_rf", **kwargs)
-        elif model_type.lower() == 'gb':
-            model = GradientBoostingModel(name="fixed_gb", **kwargs)
-        else:
-            raise ValueError(f"Unknown model type: {model_type}")
-            
-        # Train model
-        history = model.train(self.X_train_fixed, self.y_train)
-        
-        # Evaluate model
-        metrics = model.evaluate(self.X_test_fixed, self.y_test)
-        print("Evaluation metrics:")
-        for metric, value in metrics.items():
-            print(f"- {metric}: {value:.4f}")
-            
-        # Store model
-        model_name = f"fixed_{model_type}"
-        self.models[model_name] = model
-        
-        # Save model
-        model_path = os.path.join(self.output_path, model_name)
-        model.save(model_path)
-        print(f"Model saved to {model_path}")
         
         return model
     
-    def train_compound_model(self, model_type: str = 'nn', **kwargs) -> None:
-        """
-        Train a model using system parameters and compound descriptors.
-        
-        Args:
-            model_type: Type of model ('nn', 'rf', 'gb')
-            **kwargs: Additional model parameters
-        """
-        if self.X_train_compound is None:
-            raise ValueError("Compound model data not prepared. Run prepare_compound_model_data first.")
-            
-        print(f"\nTraining {model_type} model on compound data...")
-        
-        # Create model
-        if model_type.lower() == 'nn':
-            model = NeuralNetworkModel(name="compound_nn", **kwargs)
-        elif model_type.lower() == 'rf':
-            model = ForestModel(name="compound_rf", **kwargs)
-        elif model_type.lower() == 'gb':
-            model = GradientBoostingModel(name="compound_gb", **kwargs)
+    def train(self, X, y, validation_data=None, epochs=300, batch_size=32, verbose=1):
+        """Train the model with selected features"""
+        # Select features if not already done
+        if self.selected_features is None:
+            X_selected = self.select_features(X, y)
         else:
-            raise ValueError(f"Unknown model type: {model_type}")
-            
-        # Train model
-        history = model.train(self.X_train_compound, self.y_train)
+            X_selected = X[self.selected_features]
+                    
+        # Build the model if not already built
+        if self.model is None:
+            self.model = self.build_model(input_dim=X_selected.shape[1], output_dim=y.shape[1])
         
-        # Evaluate model
-        metrics = model.evaluate(self.X_test_compound, self.y_test)
-        print("Evaluation metrics:")
-        for metric, value in metrics.items():
-            print(f"- {metric}: {value:.4f}")
-            
-        # Store model
-        model_name = f"compound_{model_type}"
-        self.models[model_name] = model
+        # Prepare validation data if provided
+        val_data = None
+        if validation_data is not None:
+            X_val, y_val = validation_data
+            X_val_selected = X_val[self.selected_features]
+            val_data = (X_val_selected, y_val)
         
-        # Save model
-        model_path = os.path.join(self.output_path, model_name)
-        model.save(model_path)
-        print(f"Model saved to {model_path}")
+        # Define callbacks
+        callbacks = [
+            EarlyStopping(monitor='val_loss', patience=100, restore_best_weights=True),
+            ReduceLROnPlateau(monitor='val_loss', factor=0.5, patience=100, min_lr=1e-6)
+        ]
         
-        return model
+        # Train the model
+        self.history = self.model.fit(
+            X_selected, y,
+            epochs=epochs,
+            batch_size=batch_size,
+            validation_split=0.2 if val_data is None else 0.0,
+            validation_data=val_data,
+            callbacks=callbacks,
+            verbose=verbose
+        )
+        
+        return self.history
     
-    def train_full_model(self, model_type: str = 'nn', **kwargs) -> None:
-        """
-        Train a model using system, compound, and solvent descriptors.
+    def predict(self, X):
+        """Make predictions using the trained model"""
+        if self.model is None:
+            raise ValueError("Model has not been trained yet")
         
-        Args:
-            model_type: Type of model ('nn', 'rf', 'gb')
-            **kwargs: Additional model parameters
-        """
-        if self.X_train_full is None:
-            raise ValueError("Full model data not prepared. Run prepare_full_model_data first.")
-            
-        print(f"\nTraining {model_type} model on full data...")
-        
-        # Create model
-        if model_type.lower() == 'nn':
-            model = NeuralNetworkModel(name="full_nn", **kwargs)
-        elif model_type.lower() == 'rf':
-            model = ForestModel(name="full_rf", **kwargs)
-        elif model_type.lower() == 'gb':
-            model = GradientBoostingModel(name="full_gb", **kwargs)
-        else:
-            raise ValueError(f"Unknown model type: {model_type}")
-            
-        # Train model
-        history = model.train(self.X_train_full, self.y_train)
-        
-        # Evaluate model
-        metrics = model.evaluate(self.X_test_full, self.y_test)
-        print("Evaluation metrics:")
-        for metric, value in metrics.items():
-            print(f"- {metric}: {value:.4f}")
-            
-        # Store model
-        model_name = f"full_{model_type}"
-        self.models[model_name] = model
-        
-        # Save model
-        model_path = os.path.join(self.output_path, model_name)
-        model.save(model_path)
-        print(f"Model saved to {model_path}")
-        
-        return model
+        X_selected = X[self.selected_features]
+        return self.model.predict(X_selected)
     
-    def analyze_feature_importance(self, model_type: str = 'rf') -> Dict[str, pd.DataFrame]:
-        """
-        Analyze feature importance across different model types.
+    def evaluate(self, X, y):
+        """Evaluate the model performance"""
+        if self.model is None:
+            raise ValueError("Model has not been trained yet")
         
-        Args:
-            model_type: Type of model to analyze ('rf', 'gb')
-            
-        Returns:
-            Dictionary of feature importance DataFrames
-        """
-        if model_type.lower() not in ['rf', 'gb']:
-            raise ValueError("Feature importance analysis requires tree-based models (rf, gb)")
-            
-        print("\nAnalyzing feature importance...")
+        X_selected = X[self.selected_features]
+        y_pred = self.model.predict(X_selected)
         
-        # Check if models exist
-        model_names = [f"{prefix}_{model_type}" for prefix in ['fixed', 'compound', 'full']]
-        existing_models = [name for name in model_names if name in self.models]
+        mae_per_target = mean_absolute_error(y, y_pred, multioutput='raw_values')
+        r2_per_target = r2_score(y, y_pred, multioutput='raw_values')
         
-        if not existing_models:
-            raise ValueError(f"No {model_type} models found. Train models first.")
-            
-        # Get feature importance for each model
-        importance_dict = {}
+        print("\nModel Evaluation:")
+        print("-----------------")
+        for i, col in enumerate(y.columns):
+            print(f"{col}: MAE = {mae_per_target[i]:.4f}, R² = {r2_per_target[i]:.4f}")
         
-        for model_name in existing_models:
-            model = self.models[model_name]
-            
-            if hasattr(model, 'get_feature_importance'):
-                importance_df = model.get_feature_importance()
-                importance_dict[model_name] = importance_df
-                
-                print(f"\nTop 10 important features for {model_name}:")
-                print(importance_df.head(10))
-                
-        return importance_dict
+        print(f"\nAverage MAE: {np.mean(mae_per_target):.4f}")
+        print(f"Average R²: {np.mean(r2_per_target):.4f}")
+        
+        return {
+            'mae': mae_per_target,
+            'r2': r2_per_target,
+            'mae_avg': np.mean(mae_per_target),
+            'r2_avg': np.mean(r2_per_target)
+        }
     
-    def compare_models(self, model_types: List[str] = None) -> Dict[str, Dict]:
-        """
-        Compare performance of different models.
+    def plot_feature_importance(self, feature_names=None, top_n=20):
+        """Plot feature importance"""
+        if self.selected_features is None:
+            raise ValueError("Features have not been selected yet")
         
-        Args:
-            model_types: List of model types to compare (if None, use all available)
-            
-        Returns:
-            Dictionary of model metrics
-        """
-        if not self.models:
-            raise ValueError("No models available. Train models first.")
-            
-        if model_types is None:
-            model_names = list(self.models.keys())
-        else:
-            prefixes = ['fixed', 'compound', 'full']
-            model_names = [f"{prefix}_{type}" for prefix in prefixes for type in model_types]
-            model_names = [name for name in model_names if name in self.models]
-            
-        if not model_names:
-            raise ValueError("No matching models found")
-            
-        print("\nComparing models...")
-        
-        # Evaluate all models
-        metrics_dict = {}
-        
-        for model_name in model_names:
-            model = self.models[model_name]
-            
-            # Determine which test set to use
-            if model_name.startswith('fixed'):
-                X_test = self.X_test_fixed
-            elif model_name.startswith('compound'):
-                X_test = self.X_test_compound
-            elif model_name.startswith('full'):
-                X_test = self.X_test_full
-            else:
-                raise ValueError(f"Unknown model prefix: {model_name}")
-                
-            # Evaluate model
-            metrics = model.evaluate(X_test, self.y_test)
-            metrics_dict[model_name] = metrics
-            
-        return metrics_dict
+        plt.figure(figsize=(12, 8))
+        plt.bar(range(min(top_n, len(self.selected_features))), 
+                [1] * min(top_n, len(self.selected_features)))
+        plt.xticks(range(min(top_n, len(self.selected_features))), 
+                  self.selected_features[:top_n], rotation=90)
+        plt.title(f'Top {min(top_n, len(self.selected_features))} Selected Features')
+        plt.tight_layout()
+        plt.show()
     
-    def visualize_predictions(self, model_names: List[str], 
-                            example_index: int = 0,
-                            solubility_1: float = None,
-                            solubility_2: float = None) -> None:
-        """
-        Visualize predictions for a specific example.
+    def plot_training_history(self):
+        """Plot training history"""
+        if self.history is None:
+            raise ValueError("Model has not been trained yet")
         
-        Args:
-            model_names: List of model names to visualize
-            example_index: Index of example in test set
-            solubility_1: Solubility in solvent 1 (if None, use from data if available)
-            solubility_2: Solubility in solvent 2 (if None, use from data if available)
-        """
-        if not self.models:
-            raise ValueError("No models available. Train models first.")
-            
-        models_to_viz = [name for name in model_names if name in self.models]
+        fig, axes = plt.subplots(1, 2, figsize=(15, 5))
         
-        if not models_to_viz:
-            raise ValueError("No matching models found")
-            
-        print(f"\nVisualizing predictions for example {example_index}...")
+        # Plot training & validation loss values
+        axes[0].plot(self.history.history['loss'])
+        axes[0].plot(self.history.history['val_loss'])
+        axes[0].set_title('Model Loss')
+        axes[0].set_xlabel('Epoch')
+        axes[0].set_ylabel('Loss')
+        axes[0].legend(['Train', 'Validation'], loc='upper right')
         
-        # Get predictions from each model
-        predictions = {}
+        # Plot training & validation mean absolute error
+        axes[1].plot(self.history.history['mae'])
+        axes[1].plot(self.history.history['val_mae'])
+        axes[1].set_title('Mean Absolute Error')
+        axes[1].set_xlabel('Epoch')
+        axes[1].set_ylabel('MAE')
+        axes[1].legend(['Train', 'Validation'], loc='upper right')
         
-        for model_name in models_to_viz:
-            model = self.models[model_name]
-            
-            # Determine which test set to use
-            if model_name.startswith('fixed'):
-                X_test = self.X_test_fixed
-            elif model_name.startswith('compound'):
-                X_test = self.X_test_compound
-            elif model_name.startswith('full'):
-                X_test = self.X_test_full
-            else:
-                raise ValueError(f"Unknown model prefix: {model_name}")
-                
-            # Get prediction for this example
-            example = X_test.iloc[[example_index]]
-            pred = model.predict(example)[0]
-            predictions[model_name] = pred
-            
-        # Get actual values
-        actual = self.y_test.iloc[example_index].values
-        
-        # Print predictions vs actual
-        print("\nPredictions vs Actual:")
-        print(f"Actual: {actual}")
-        
-        for model_name, pred in predictions.items():
-            print(f"{model_name}: {pred}")
-            
-        # Create visualization
-        for model_name, pred in predictions.items():
-            print(f"\nVisualization for {model_name}:")
-            
-            if solubility_1 is None or solubility_2 is None:
-                print("Cannot visualize: solubility values not provided")
-                continue
-                
-            # Try to get temperature from data
-            if self.raw_data is not None and 'temperature' in self.raw_data.columns:
-                temperature = self.raw_data['temperature'].iloc[example_index]
-            else:
-                temperature = 298.15
-                
-            # Get experimental data if available
-            experimental = None
-            
-            # Create visualization
-            SolventSwapVisualizer.plot_ja_predictions(
-                predictions=pred,
-                experimental=experimental,
-                solubility_1=solubility_1,
-                solubility_2=solubility_2,
-                temperature=temperature
-            )
+        plt.tight_layout()
+        plt.show()
 
+class SystemDesign:
+    
+    def __init__(self, system_columns, 
+                 raw_data_path='curve_fit_results_x_is_7.csv',
+                 extra_fitted_points=0,
+                 target_columns=['J0','J1','J2']
+                 ):
+        """
+        Initialize the SystemDesign class with system columns.
+        
+        Parameters:
+        -----------
+        system_columns : list
+            List of columns that define the system.
+            Options of 'solvent_2', solvent_1','temperature','compound_id'
+        raw_data_pathh : str
+            Path to the raw data file.
+        extra_fitted_points : int
+            Number of extra fitted points to consider.
+        target_columns : list
+            List of target columns to be used for splitting.
+        
+        """
+        self.system_columns = system_columns
+        self.dataprocess, self.dataloader = DataProcessor.CreateDataProcessor(
+            raw_data_path=raw_data_path,
+            system_columns=self.system_columns,
+            extra_points=extra_fitted_points
+        )
+        
+        self.feature_processor = FeatureProcessor(categorical_column='system')
+        self.target_columns = target_columns
+        
+        self.fit_feature_processor()
+        
+    def get_data_split_df(self):
+        """
+        Get the data split DataFrame.
+        
+        Parameters:
+        -----------
+        target_columns : list
+            List of target columns to be used for splitting.
+        
+        Returns:
+        --------
+        x : DataFrame
+            Feature DataFrame.
+        y : DataFrame
+            Target DataFrame.
+        """
+        x, y = self.dataprocess.get_data_split_df(target_columns=self.target_columns)
+        
+        return x, y 
+    
+    def get_train_test_split(self):
+        x,y = self.get_data_split_df()
+    
+        x_train, x_test, y_train, y_test = train_test_split(
+            x,
+            y,
+            test_size=0.2,
+            random_state=42,
+        )
+        
+        return x_train, x_test, y_train, y_test
+    
+    def fit_feature_processor(self):
+        x,y = self.get_data_split_df()
+        self.feature_processor.fit(x, y)
+    
+    def transform_inputs(self,x):
+        return self.feature_processor.transform_inputs(x)
+    
+    def transform_outputs(self,y):
+        return self.feature_processor.transform_outputs(y)
+    
 
-# Example usage
 if __name__ == "__main__":
-    # Example paths - adjust these to your environment
-    data_path = "../../output"
-    database_path = "../../db/MasterDatabase.db"
-    
-    # Create modeling framework
-    modeling = SolventSwapModeling(data_path, database_path)
-    
-    # Load data
-    modeling.load_data()
-    
-    # Prepare data for different model types
-    target_columns = ['J0', 'J1', 'J2']
-    system_columns = ['solvent_1', 'solvent_2', 'temperature']
-    
-    # Fixed model data
-    modeling.prepare_fixed_model_data(target_columns, system_columns)
-    
-    # Compound model data
-    modeling.prepare_compound_model_data(target_columns, system_columns)
-    
-    # Full model data
-    modeling.prepare_full_model_data(target_columns, system_columns)
-    
-    # Train models
-    # You can choose which models to train based on your needs
-    
-    # Fixed models
-    modeling.train_fixed_model('nn')
-    modeling.train_fixed_model('rf')
-    
-    # Compound models
-    modeling.train_compound_model('nn')
-    modeling.train_compound_model('rf')
-    
-    # Full models
-    modeling.train_full_model('nn')
-    modeling.train_full_model('rf')
-    
-    # Analyze feature importance
-    importance_dict = modeling.analyze_feature_importance('rf')
-    
-    # Compare models
-    metrics_dict = modeling.compare_models()
-    
-    # Visualize predictions
-    # Example solubility values - replace with actual values
-    solubility_1 = 100.0  # g/L in solvent 1
-    solubility_2 = 150.0  # g/L in solvent 2
-    
-    modeling.visualize_predictions(
-        model_names=['fixed_nn', 'compound_nn', 'full_nn'],
-        example_index=0,
-        solubility_1=solubility_1,
-        solubility_2=solubility_2
+    basicSystem = SystemDesign(
+        system_columns=['solvent_1','solvent_2','temperature'],
+        raw_data_path='curve_fit_results_x_is_7.csv',
+        extra_fitted_points=1,
+        target_columns=['J0','J1','J2']
     )
-    
-    # Compare feature importance across models
-    SolventSwapVisualizer.compare_feature_importance(importance_dict)
-    
-    # Compare model performance
-    SolventSwapVisualizer.compare_models(metrics_dict, 
-                                        X_test=modeling.X_test_fixed,
-                                        y_test=modeling.y_test)
-    
-    # Plot parity charts
-    model_dict = {
-        'Fixed NN': modeling.models['fixed_nn'],
-        'Compound NN': modeling.models['compound_nn'],
-        'Full NN': modeling.models['full_nn']
-    }
-    
-    SolventSwapVisualizer.plot_parity(model_dict,
-                                     X_test=modeling.X_test_fixed,  # Use any test set
-                                     y_test=modeling.y_test,
-                                     target_names=['J0', 'J1', 'J2'])
+
+    x,y = basicSystem.get_data_split_df()
+    x_train, x_test, y_train, y_test = basicSystem.get_train_test_split()
+
+    # Transform training data
+    X_train_processed = basicSystem.transform_inputs(x_train)
+    y_train_processed = basicSystem.transform_outputs(y_train)
+
+    # Transform testing data
+    X_test_processed = basicSystem.transform_inputs(x_test)
+    y_test_processed = basicSystem.transform_outputs(y_test)
+
+    # Create model with feature selection, keeping solvent columns always
+    nn_model = NeuralNetworkWithFeatureSelection(feature_selection_method='random_forest', 
+                                                n_features=10,
+                                                keep_prefixes=['solvent_1_pure','solvent_2_pure','system','solubility_','temperature'])
+
+    nn_model.train(X_train_processed, y_train_processed, validation_data=(X_test_processed, y_test_processed), epochs=1000, batch_size=32, verbose=1)
+
+    nn_model.evaluate(X_test_processed, y_test_processed)
+    nn_model.plot_training_history()
+
+    y_pred = nn_model.predict(X_test_processed)
+
+    # Convert scaled predictions back to original scale
+    y_pred_original = basicSystem.feature_processor.output_scalar.inverse_transform(y_pred)
+    y_test_original = basicSystem.feature_processor.output_scalar.inverse_transform(y_test_processed)
+
+    # Calculate and print the mean absolute error for each parameter in original scale
+    mae_original = np.mean(np.abs(y_pred_original - y_test_original), axis=0)
+    print(f"MAE in original scale - J0: {mae_original[0]:.2f}, J1: {mae_original[1]:.2f}, J2: {mae_original[2]:.2f}")
+        
