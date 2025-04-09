@@ -139,7 +139,7 @@ class NeuralNetworkWithFeatureSelection:
         # Build the model if not already built
         if self.model is None:
             self.model = self.build_model(input_dim=X_selected.shape[1], output_dim=y.shape[1])
-        
+                
         # Prepare validation data if provided
         val_data = None
         if validation_data is not None:
@@ -240,6 +240,8 @@ class NeuralNetworkWithFeatureSelection:
         plt.tight_layout()
         plt.show()
 
+# ...existing code...
+
 class SystemDesign:
     
     def __init__(self, system_columns, 
@@ -272,6 +274,7 @@ class SystemDesign:
         
         self.feature_processor = FeatureProcessor(categorical_column='system')
         self.target_columns = target_columns
+        self.model = None
         
         self.fit_feature_processor()
         
@@ -296,7 +299,7 @@ class SystemDesign:
         return x, y 
     
     def get_train_test_split(self):
-        x,y = self.get_data_split_df()
+        x, y = self.get_data_split_df()
     
         x_train, x_test, y_train, y_test = train_test_split(
             x,
@@ -308,52 +311,149 @@ class SystemDesign:
         return x_train, x_test, y_train, y_test
     
     def fit_feature_processor(self):
-        x,y = self.get_data_split_df()
+        x, y = self.get_data_split_df()
         self.feature_processor.fit(x, y)
     
-    def transform_inputs(self,x):
+    def transform_inputs(self, x):
         return self.feature_processor.transform_inputs(x)
     
-    def transform_outputs(self,y):
+    def transform_outputs(self, y):
         return self.feature_processor.transform_outputs(y)
     
+    def train_model(self, feature_selection_method='random_forest', n_features=10, 
+                   keep_prefixes=['solvent_1_pure','solvent_2_pure','system','solubility_','temperature'],
+                   epochs=1000, batch_size=32, verbose=1):
+        """
+        Train a neural network model with feature selection.
+        
+        Parameters:
+        -----------
+        feature_selection_method : str
+            Method for feature selection: 'correlation', 'f_regression', 'rfe', 'random_forest'
+        n_features : int
+            Number of features to select
+        keep_prefixes : list
+            List of column prefixes to always keep regardless of feature selection
+        epochs : int
+            Number of training epochs
+        batch_size : int
+            Batch size for training
+        verbose : int
+            Verbosity level for training
+            
+        Returns:
+        --------
+        model : NeuralNetworkWithFeatureSelection
+            Trained neural network model
+        """
+        # Get train-test split
+        x_train, x_test, y_train, y_test = self.get_train_test_split()
+
+        # Transform training data
+        X_train_processed = self.transform_inputs(x_train)
+        y_train_processed = self.transform_outputs(y_train)
+
+        # Transform testing data
+        X_test_processed = self.transform_inputs(x_test)
+        y_test_processed = self.transform_outputs(y_test)
+
+        # Create model with feature selection
+        self.model = NeuralNetworkWithFeatureSelection(
+            feature_selection_method=feature_selection_method, 
+            n_features=n_features,
+            keep_prefixes=keep_prefixes)
+
+        # Train the model
+        self.model.train(
+            X_train_processed, 
+            y_train_processed, 
+            validation_data=(X_test_processed, y_test_processed), 
+            epochs=epochs, 
+            batch_size=batch_size, 
+            verbose=verbose
+        )
+        
+        return self.model
+    
+    def evaluate_model(self):
+        """
+        Evaluate the trained model on the test set.
+        
+        Returns:
+        --------
+        results : dict
+            Dictionary containing evaluation metrics
+        """
+        if self.model is None:
+            raise ValueError("Model has not been trained yet. Call train_model first.")
+            
+        # Get test data
+        _, x_test, _, y_test = self.get_train_test_split()
+        
+        # Transform test data
+        X_test_processed = self.transform_inputs(x_test)
+        y_test_processed = self.transform_outputs(y_test)
+        
+        # Evaluate and plot
+        results = self.model.evaluate(X_test_processed, y_test_processed)
+        self.model.plot_training_history()
+        
+        return results
+    
+    def get_predictions_and_metrics(self):
+        """
+        Get predictions and calculate metrics in original scale.
+        
+        Returns:
+        --------
+        predictions : tuple
+            Tuple containing (y_pred_original, y_test_original, mae_original)
+        """
+        if self.model is None:
+            raise ValueError("Model has not been trained yet. Call train_model first.")
+            
+        # Get test data
+        _, x_test, _, y_test = self.get_train_test_split()
+        
+        # Transform test data
+        X_test_processed = self.transform_inputs(x_test)
+        y_test_processed = self.transform_outputs(y_test)
+        
+        # Make predictions
+        y_pred = self.model.predict(X_test_processed)
+        
+        # Convert scaled predictions back to original scale
+        y_pred_original = self.feature_processor.output_scalar.inverse_transform(y_pred)
+        y_test_original = self.feature_processor.output_scalar.inverse_transform(y_test_processed)
+        
+        # Calculate metrics
+        mae_original = np.mean(np.abs(y_pred_original - y_test_original), axis=0)
+        print(f"MAE in original scale - J0: {mae_original[0]:.2f}, J1: {mae_original[1]:.2f}, J2: {mae_original[2]:.2f}")
+        
+        return y_pred_original, y_test_original, mae_original
+
 
 if __name__ == "__main__":
-    basicSystem = SystemDesign(
+    # Create and setup the system
+    system = SystemDesign(
         system_columns=['solvent_1','solvent_2','temperature'],
         raw_data_path='curve_fit_results_x_is_7.csv',
         extra_fitted_points=1,
         target_columns=['J0','J1','J2']
     )
-
-    x,y = basicSystem.get_data_split_df()
-    x_train, x_test, y_train, y_test = basicSystem.get_train_test_split()
-
-    # Transform training data
-    X_train_processed = basicSystem.transform_inputs(x_train)
-    y_train_processed = basicSystem.transform_outputs(y_train)
-
-    # Transform testing data
-    X_test_processed = basicSystem.transform_inputs(x_test)
-    y_test_processed = basicSystem.transform_outputs(y_test)
-
-    # Create model with feature selection, keeping solvent columns always
-    nn_model = NeuralNetworkWithFeatureSelection(feature_selection_method='random_forest', 
-                                                n_features=10,
-                                                keep_prefixes=['solvent_1_pure','solvent_2_pure','system','solubility_','temperature'])
-
-    nn_model.train(X_train_processed, y_train_processed, validation_data=(X_test_processed, y_test_processed), epochs=1000, batch_size=32, verbose=1)
-
-    nn_model.evaluate(X_test_processed, y_test_processed)
-    nn_model.plot_training_history()
-
-    y_pred = nn_model.predict(X_test_processed)
-
-    # Convert scaled predictions back to original scale
-    y_pred_original = basicSystem.feature_processor.output_scalar.inverse_transform(y_pred)
-    y_test_original = basicSystem.feature_processor.output_scalar.inverse_transform(y_test_processed)
-
-    # Calculate and print the mean absolute error for each parameter in original scale
-    mae_original = np.mean(np.abs(y_pred_original - y_test_original), axis=0)
-    print(f"MAE in original scale - J0: {mae_original[0]:.2f}, J1: {mae_original[1]:.2f}, J2: {mae_original[2]:.2f}")
-        
+    
+    # Train the model
+    system.train_model(
+        feature_selection_method='random_forest',
+        n_features=10,
+        keep_prefixes=['solvent_1_pure','solvent_2_pure','system','solubility_','temperature'],
+        epochs=1000, 
+        batch_size=32, 
+        verbose=1
+    )
+    
+    # Evaluate the model
+    system.evaluate_model()
+    
+    # Get predictions and metrics
+    predictions, actuals, mae = system.get_predictions_and_metrics()
