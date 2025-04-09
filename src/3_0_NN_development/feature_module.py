@@ -10,234 +10,84 @@ from sklearn.inspection import permutation_importance
 import matplotlib.pyplot as plt
 import seaborn as sns
 
-
-class FeatureEncoder:
-    """Handles feature encoding strategies."""
+class FeatureProcessor:
+    def __init__(self, categorical_column='system'):
+        """
+        Initialize feature processor for encoding categorical data and scaling numerical data.
+        
+        Parameters:
+        -----------
+        categorical_column : str
+            The categorical column to be one-hot encoded
+        """
+        self.categorical_column = categorical_column
+        self.encoder = OneHotEncoder(sparse_output=False, handle_unknown='ignore')
+        self.input_scalar = RobustScaler()
+        self.output_scalar = RobustScaler()
+        self.fitted = False
     
-    def __init__(self):
-        """Initialize encoders dictionary."""
-        self.encoders = {}
-        self.encoded_features = {}
-        self.feature_names = {}
+    def fit(self, X, y=None):
+        """Fit the encoder and scalers to the data"""
+        # Fit encoder on categorical column
+        self.encoder.fit(X[[self.categorical_column]])
         
-    def fit_one_hot_encoder(self, 
-                           data: pd.DataFrame, 
-                           column: str, 
-                           handle_unknown: str = 'ignore') -> None:
-        """
-        Fit one-hot encoder for a categorical column.
+        # Fit scaler on numerical columns
+        self.input_scalar.fit(X.drop(columns=[self.categorical_column]))
         
-        Args:
-            data: DataFrame containing the column
-            column: Column name to encode
-            handle_unknown: Strategy for handling unknown categories
-        """
-        encoder = OneHotEncoder(sparse_output=False, handle_unknown=handle_unknown)
+        # Fit output scaler if target is provided
+        if y is not None:
+            self.output_scalar.fit(y)
         
-        # Reshape to 2D array for encoder
-        X = data[[column]].values
-        encoder.fit(X)
+        self.fitted = True
+        return self
+    
+    def transform_inputs(self, X):
+        """Transform input features using fitted encoder and scaler"""
+        if not self.fitted:
+            raise ValueError("FeatureProcessor must be fitted first")
         
-        # Store the encoder
-        self.encoders[column] = {
-            'type': 'one_hot',
-            'encoder': encoder,
-            'categories': encoder.categories_[0]
-        }
-        
-    def transform_one_hot(self, 
-                         data: pd.DataFrame, 
-                         column: str) -> pd.DataFrame:
-        """
-        Transform data using fitted one-hot encoder.
-        
-        Args:
-            data: DataFrame containing the column
-            column: Column name to encode
-            
-        Returns:
-            DataFrame with encoded features
-        """
-        if column not in self.encoders or self.encoders[column]['type'] != 'one_hot':
-            raise ValueError(f"No one-hot encoder fitted for column {column}")
-            
-        encoder = self.encoders[column]['encoder']
-        X = data[[column]].values
-        encoded = encoder.transform(X)
-        
-        # Create feature names
-        categories = self.encoders[column]['categories']
-        feature_names = [f"{column}_{cat}" for cat in categories]
-        
-        # Create DataFrame with encoded values
-        encoded_df = pd.DataFrame(
-            encoded, 
-            columns=feature_names,
-            index=data.index
+        # Encode categorical column
+        cat_encoded = self.encoder.transform(X[[self.categorical_column]])
+        cat_encoded_df = pd.DataFrame(
+            cat_encoded,
+            columns=[f"{self.categorical_column}_{val}" for val in self.encoder.categories_[0]],
+            index=X.index
         )
         
-        # Store encoded features and names
-        self.encoded_features[column] = encoded_df
-        self.feature_names[column] = feature_names
-        
-        return encoded_df
-    
-    def fit_transform_one_hot(self, 
-                             data: pd.DataFrame, 
-                             column: str,
-                             handle_unknown: str = 'ignore') -> pd.DataFrame:
-        """
-        Fit and transform in one step for one-hot encoding.
-        
-        Args:
-            data: DataFrame containing the column
-            column: Column name to encode
-            handle_unknown: Strategy for handling unknown categories
-            
-        Returns:
-            DataFrame with encoded features
-        """
-        self.fit_one_hot_encoder(data, column, handle_unknown)
-        return self.transform_one_hot(data, column)
-    
-    def fit_scaler(self, 
-                  data: pd.DataFrame,
-                  columns: List[str],
-                  scaler_type: str = 'robust',
-                  scaler_name: str = 'default') -> None:
-        """
-        Fit a scaler for numerical columns.
-        
-        Args:
-            data: DataFrame containing the columns
-            columns: Column names to scale
-            scaler_type: Type of scaler ('standard', 'robust', 'minmax')
-            scaler_name: Name to identify this scaler
-        """
-        if scaler_type == 'standard':
-            scaler = StandardScaler()
-        elif scaler_type == 'robust':
-            scaler = RobustScaler()
-        elif scaler_type == 'minmax':
-            scaler = MinMaxScaler()
-        else:
-            raise ValueError(f"Unknown scaler type: {scaler_type}")
-            
-        # Fit the scaler
-        X = data[columns].values
-        scaler.fit(X)
-        
-        # Store the scaler
-        self.encoders[scaler_name] = {
-            'type': 'scaler',
-            'scaler': scaler,
-            'columns': columns
-        }
-        
-    def transform_scaler(self, 
-                        data: pd.DataFrame,
-                        scaler_name: str = 'default') -> pd.DataFrame:
-        """
-        Transform data using fitted scaler.
-        
-        Args:
-            data: DataFrame containing the columns
-            scaler_name: Name of the scaler to use
-            
-        Returns:
-            DataFrame with scaled features
-        """
-        if scaler_name not in self.encoders or self.encoders[scaler_name]['type'] != 'scaler':
-            raise ValueError(f"No scaler fitted with name {scaler_name}")
-            
-        scaler_info = self.encoders[scaler_name]
-        scaler = scaler_info['scaler']
-        columns = scaler_info['columns']
-        
-        # Check if all columns exist in data
-        missing_cols = [col for col in columns if col not in data.columns]
-        if missing_cols:
-            raise ValueError(f"Columns {missing_cols} not found in data")
-            
-        # Transform the data
-        X = data[columns].values
-        scaled = scaler.transform(X)
-        
-        # Create DataFrame with scaled values
-        scaled_df = pd.DataFrame(
-            scaled,
-            columns=columns,
-            index=data.index
+        # Scale numerical columns
+        num_scaled = self.input_scalar.transform(X.drop(columns=[self.categorical_column]))
+        num_scaled_df = pd.DataFrame(
+            num_scaled,
+            columns=X.drop(columns=[self.categorical_column]).columns,
+            index=X.index
         )
         
-        # Store scaled features
-        self.encoded_features[scaler_name] = scaled_df
-        self.feature_names[scaler_name] = columns
-        
-        return scaled_df
+        # Combine encoded and scaled data
+        return pd.concat([num_scaled_df, cat_encoded_df], axis=1)
     
-    def fit_transform_scaler(self,
-                            data: pd.DataFrame,
-                            columns: List[str],
-                            scaler_type: str = 'robust',
-                            scaler_name: str = 'default') -> pd.DataFrame:
-        """
-        Fit and transform in one step for scaling.
+    def transform_outputs(self, y):
+        """Scale target values"""
+        if not self.fitted:
+            raise ValueError("FeatureProcessor must be fitted first")
         
-        Args:
-            data: DataFrame containing the columns
-            columns: Column names to scale
-            scaler_type: Type of scaler ('standard', 'robust', 'minmax')
-            scaler_name: Name to identify this scaler
-            
-        Returns:
-            DataFrame with scaled features
-        """
-        self.fit_scaler(data, columns, scaler_type, scaler_name)
-        return self.transform_scaler(data, scaler_name)
+        y_scaled = self.output_scalar.transform(y)
+        return pd.DataFrame(
+            y_scaled,
+            columns=y.columns,
+            index=y.index
+        )
     
-    def create_system_id(self,
-                        data: pd.DataFrame,
-                        columns: List[str],
-                        new_column: str = 'system_id') -> pd.DataFrame:
-        """
-        Create a system ID by combining multiple columns.
+    def inverse_transform_outputs(self, y_scaled):
+        """Inverse transform scaled target values back to original scale"""
+        if not self.fitted:
+            raise ValueError("FeatureProcessor must be fitted first")
         
-        Args:
-            data: DataFrame containing the columns
-            columns: Column names to combine
-            new_column: Name for the new system ID column
-            
-        Returns:
-            DataFrame with new system ID column
-        """
-        # Check if all columns exist in data
-        missing_cols = [col for col in columns if col not in data.columns]
-        if missing_cols:
-            raise ValueError(f"Columns {missing_cols} not found in data")
-            
-        # Create the system ID
-        df = data.copy()
-        df[new_column] = df[columns].astype(str).agg('-'.join, axis=1)
-        
-        return df
-    
-    def get_all_feature_names(self) -> List[str]:
-        """
-        Get all feature names after encoding.
-        
-        Returns:
-            List of feature names
-        """
-        all_names = []
-        for names in self.feature_names.values():
-            if isinstance(names, list):
-                all_names.extend(names)
-            else:
-                all_names.append(names)
-                
-        return all_names
-
+        y_original = self.output_scalar.inverse_transform(y_scaled)
+        return pd.DataFrame(
+            y_original,
+            columns=y_scaled.columns,
+            index=y_scaled.index
+        )
 
 class FeatureImportance:
     """Analyzes feature importance for different model types."""
