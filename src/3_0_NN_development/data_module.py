@@ -6,6 +6,7 @@ import pandas as pd
 import numpy as np
 import sqlite3
 from typing import List, Dict, Tuple, Optional, Union, Any
+from groups import ja_groups
 
 current_folder = os.path.dirname(os.path.abspath(__file__))
 
@@ -110,7 +111,7 @@ class DataLoader:
         finally:
             conn.close()
             
-        return self.solvent_descriptors
+        return self.solvent_descriptors       
 
 
 class DataProcessor:
@@ -119,7 +120,8 @@ class DataProcessor:
     @staticmethod
     def CreateDataProcessor(
         raw_data_path: str = 'curve_fit_results_x_is_6.csv',
-        system_columns: list[str] = ['solvent_1','solvent_2','compound_id','temperature']
+        system_columns: list[str] = ['solvent_1','solvent_2','compound_id','temperature'],
+        extra_points: int = 0
         ):
         """
         Create a DataProcessor instance with the given parameters.
@@ -159,8 +161,11 @@ class DataProcessor:
                 desc_id_col='id',
                 prefix='solvent_1_'
             )
-            
-        return dataprocessor
+        
+        if extra_points > 0:
+            dataprocessor.load_extra_solubility_data(extra_points)
+
+        return dataprocessor, data
     
     def __init__(self, raw_data: pd.DataFrame = None, system_columns: List[str] = ['solvent_1','solvent_2','temperature','compound_id']):
         """
@@ -197,7 +202,7 @@ class DataProcessor:
         
         processed_data['system'] =  self.raw_data[self.system_columns].astype(str).agg('-'.join, axis=1)
                 
-        self.processed_data = processed_data.reset_index(drop=True)
+        self.processed_data = processed_data
         return processed_data
     
     def drop_columns(self, columns: List[str]) -> pd.DataFrame:
@@ -298,39 +303,81 @@ class DataProcessor:
 
         return features, target
     
-    def split_data(self, 
-                 target_columns: List[str], 
-                 test_size: float = 0.2, 
-                 random_state: int = 42) -> Tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame, pd.DataFrame]:
-        """
-        Split data into training and testing sets.
-        
-        Args:
-            target_columns: List of target column names
-            test_size: Proportion of data to use for testing
-            random_state: Random seed for reproducibility
-            
-        Returns:
-            X_train, X_test, y_train, y_test DataFrames
-        """
-        from sklearn.model_selection import train_test_split
-        
+    def get_data_split_df(self, target_columns: List[str]) -> pd.DataFrame:                
         if self.processed_data is None:
             raise ValueError("Processed data not available")
         
         feature_columns, target_columns = self.get_column_names_for_split(target=target_columns)
-            
+        
         df = self.processed_data.copy()
             
         X = df[feature_columns]
         y = df[target_columns]
         
-        X_train, X_test, y_train, y_test = train_test_split(
-            X, y, test_size=test_size, random_state=random_state
-        )
+        return X, y
+    
+    def load_extra_solubility_data(self, num) -> pd.DataFrame:
+        """
+        Load additional solubility data from ja_groups based on weight_fraction range.
+            
+        Returns:
+            Updated processed DataFrame with added solubility data
+        """
+        if self.processed_data is None:
+            raise ValueError("Processed data not available, run create_system first")
         
-        return X_train, X_test, y_train, y_test
+        filtered_data = []
+        
+        def get_solubility(weight_fraction, group_data):
+            # Extract weight fractions from the group data
+            weight_fractions = group_data['solvent_1_weight_fraction']
+            
+            # Find the closest weight fraction index
+            closest_idx = min(range(len(weight_fractions)), 
+                                key=lambda i: abs(weight_fractions[i] - weight_fraction))
+            
+            # Return the corresponding solubility value
+            return group_data['solubility_g_g'][closest_idx]
+        
+        for _,row in self.processed_data.iterrows():
+            group_index = row['group_index']
+            
+            group = ja_groups[group_index]
 
-
+            column_06 = get_solubility(0.6, group)
+            column_02 = get_solubility(0.2, group)    
+            column_04 = get_solubility(0.4, group)
+            column_08 = get_solubility(0.8, group)     
+            row = {}
+            row['group_index'] = group_index
+            
+            if num == 1:
+                row['solubility_0.6'] = column_06
+            elif num == 2:
+                row['solubility_0.6'] = column_06
+                row['solubility_0.2'] = column_02
+            elif num == 3:
+                row['solubility_0.6'] = column_06
+                row['solubility_0.2'] = column_02
+                row['solubility_0.4'] = column_04
+            elif num == 4:
+                row['solubility_0.6'] = column_06
+                row['solubility_0.2'] = column_02
+                row['solubility_0.4'] = column_04
+                row['solubility_0.8'] = column_08
+                 
+            filtered_data.append(row)
+        
+        filtered_data = pd.DataFrame(filtered_data)
+        
+        self.processed_data = self.processed_data.merge(
+            filtered_data,
+            how='inner',
+            left_on='group_index',
+            right_on='group_index',
+        )
+                
+        
+        return self.processed_data
 
         
