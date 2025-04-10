@@ -23,6 +23,28 @@ class Sampling(Layer):
         epsilon = tf.keras.backend.random_normal(shape=(batch, dim))
         return z_mean + tf.exp(0.5 * z_log_var) * epsilon
 
+class KLDivergenceLayer(Layer):
+    """
+    Custom layer for computing KL divergence loss.
+    """
+    def __init__(self, weight=1.0, **kwargs):
+        super(KLDivergenceLayer, self).__init__(**kwargs)
+        self.weight = weight
+    
+    def call(self, inputs):
+        z_mean, z_log_var = inputs
+        kl_loss = -0.5 * tf.reduce_mean(
+            1 + z_log_var - tf.square(z_mean) - tf.exp(z_log_var)
+        )
+        self.add_loss(self.weight * kl_loss)
+        # Return inputs unchanged, this layer is just for computing loss
+        return inputs
+    
+    def get_config(self):
+        config = super(KLDivergenceLayer, self).get_config()
+        config.update({'weight': self.weight})
+        return config
+
 class VariationalAutoencoderWithFeatureSelection(BaseModelWithFeatureSelection):
     """
     Variational Autoencoder model with feature selection capabilities.
@@ -93,6 +115,9 @@ class VariationalAutoencoderWithFeatureSelection(BaseModelWithFeatureSelection):
         # Sample from the distribution
         z = Sampling()([z_mean, z_log_var])
         
+        # Apply KL divergence
+        kl_loss_layer = KLDivergenceLayer(weight=self.kl_weight)([z_mean, z_log_var])
+        
         # Instantiate encoder model
         self.encoder = Model(encoder_inputs, [z_mean, z_log_var, z], name='encoder')
         
@@ -115,13 +140,7 @@ class VariationalAutoencoderWithFeatureSelection(BaseModelWithFeatureSelection):
         vae_outputs = self.decoder(self.encoder(encoder_inputs)[2])
         vae = Model(encoder_inputs, vae_outputs, name='vae')
         
-        # Add KL divergence loss
-        kl_loss = -0.5 * tf.reduce_mean(
-            1 + z_log_var - tf.square(z_mean) - tf.exp(z_log_var)
-        )
-        vae.add_loss(self.kl_weight * kl_loss)
-        
-        # Compile model
+        # Compile model - KL loss is added via the KLDivergenceLayer
         vae.compile(
             optimizer=Adam(learning_rate=learning_rate),
             loss='mse',
@@ -440,7 +459,10 @@ class VariationalAutoencoderWithFeatureSelection(BaseModelWithFeatureSelection):
     def load_model(cls, filepath):
         """Load a saved VAE model"""
         # Load custom layer
-        custom_objects = {"Sampling": Sampling}
+        custom_objects = {
+            "Sampling": Sampling,
+            "KLDivergenceLayer": KLDivergenceLayer
+        }
         
         # Load full model, encoder and decoder
         model = load_model(filepath, custom_objects=custom_objects)
