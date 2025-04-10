@@ -75,14 +75,16 @@ class SystemDesign:
     def transform_outputs(self, y):
         return self.feature_processor.transform_outputs(y)
     
-    def train_model(self, feature_selection_method='random_forest', n_features=10, 
+    def train_model(self, model_class=NeuralNetworkWithFeatureSelection, feature_selection_method='random_forest', n_features=10, 
                    keep_prefixes=['solvent_1_pure','solvent_2_pure','system','solubility_','temperature'],
-                   epochs=1000, batch_size=32, verbose=1, optimize_hyperparams=False, n_calls=20):
+                   epochs=1000, batch_size=32, verbose=1, optimize_hyperparams=False, n_calls=20, **kwargs):
         """
-        Train a neural network model with feature selection.
+        Train a model with feature selection.
         
         Parameters:
         -----------
+        model_class : class
+            Model class to use (defaults to NeuralNetworkWithFeatureSelection)
         feature_selection_method : str
             Method for feature selection: 'correlation', 'f_regression', 'rfe', 'random_forest'
         n_features : int
@@ -99,11 +101,13 @@ class SystemDesign:
             Whether to perform hyperparameter optimization
         n_calls : int
             Number of iterations for optimization
+        **kwargs : dict
+            Additional keyword arguments to pass to the model constructor
         
         Returns:
         --------
-        model : NeuralNetworkWithFeatureSelection
-            Trained neural network model
+        model : object
+            Trained model
         """
         # Get train-test split
         x_train, x_test, y_train, y_test = self.get_train_test_split()
@@ -117,10 +121,11 @@ class SystemDesign:
         y_test_processed = self.transform_outputs(y_test)
 
         # Create model with feature selection
-        self.model = NeuralNetworkWithFeatureSelection(
+        self.model = model_class(
             feature_selection_method=feature_selection_method, 
             n_features=n_features,
-            keep_prefixes=keep_prefixes)
+            keep_prefixes=keep_prefixes,
+            **kwargs)
 
         # Train the model
         self.model.train(
