@@ -9,7 +9,7 @@ import pickle
 
 from base_model import BaseModelWithFeatureSelection
 
-class XGBoostModelWithFeatureSelection(BaseModelWithFeatureSelection):
+class XGBoostWithFeatureSelection(BaseModelWithFeatureSelection):
     """
     XGBoost model with feature selection capabilities.
     Can be used as a drop-in replacement for NeuralNetworkWithFeatureSelection.
@@ -510,60 +510,3 @@ class XGBoostModelWithFeatureSelection(BaseModelWithFeatureSelection):
         plt.show()
         
         return fig
-    
-    def _save_model_specific(self, filepath):
-        """Save XGBoost specific components"""
-        # Save each model separately
-        for i, model in enumerate(self.model):
-            model.save_model(f"{filepath}_model_{i}.json")
-        
-        # Save feature importances and history
-        with open(f"{filepath}_xgb_data.pkl", 'wb') as f:
-            pickle.dump({
-                'feature_importances_': self.feature_importances_,
-                'history': self.history
-            }, f)
-    
-    @classmethod
-    def load_model(cls, filepath):
-        """Load a saved XGBoost model"""
-        # Load metadata
-        with open(f"{filepath}_metadata.json", 'r') as f:
-            metadata = json.load(f)
-        
-        # Create instance and set attributes
-        instance = cls(
-            feature_selection_method=metadata['feature_selection_method'],
-            n_features=metadata['n_features'],
-            keep_prefixes=eval(metadata['keep_prefixes']) if metadata['keep_prefixes'].startswith('[') else []
-        )
-        
-        instance.selected_features = eval(metadata['selected_features']) if metadata['selected_features'].startswith('[') else []
-        instance.best_params = eval(metadata['best_params']) if metadata['best_params'] != 'None' else None
-        
-        # Load additional XGBoost data
-        try:
-            with open(f"{filepath}_xgb_data.pkl", 'rb') as f:
-                data = pickle.load(f)
-                instance.feature_importances_ = data['feature_importances_']
-                instance.history = data['history']
-        except:
-            print("Warning: Could not load XGBoost additional data")
-        
-        # Count number of model files to determine output dimension
-        import os
-        import glob
-        model_files = glob.glob(f"{filepath}_model_*.json")
-        n_outputs = len(model_files)
-        
-        if n_outputs == 0:
-            raise ValueError(f"No model files found for {filepath}")
-        
-        # Load each model
-        instance.model = []
-        for i in range(n_outputs):
-            model = xgb.XGBRegressor()
-            model.load_model(f"{filepath}_model_{i}.json")
-            instance.model.append(model)
-        
-        return instance

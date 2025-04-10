@@ -2,7 +2,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from sklearn.metrics import r2_score
 import tensorflow as tf
-from tensorflow.keras.models import Model, load_model
+from tensorflow.keras.models import Model
 from tensorflow.keras.layers import Dense, Dropout, Input
 from tensorflow.keras.optimizers import Adam
 from tensorflow.keras.callbacks import EarlyStopping, ReduceLROnPlateau
@@ -205,32 +205,3 @@ class NeuralNetworkWithFeatureSelection(BaseModelWithFeatureSelection):
         plt.show()
         
         return fig
-    
-    def _save_model_specific(self, filepath):
-        """Save neural network specific components"""
-        # Save Keras model
-        self.model.save(filepath)
-    
-    @classmethod
-    def load_model(cls, filepath):
-        """Load a saved neural network model"""
-        # Load Keras model
-        keras_model = load_model(filepath)
-        
-        # Load metadata
-        import json
-        with open(f"{filepath}_metadata.json", 'r') as f:
-            metadata = json.load(f)
-        
-        # Create instance and set attributes
-        instance = cls(
-            feature_selection_method=metadata['feature_selection_method'],
-            n_features=metadata['n_features'],
-            keep_prefixes=eval(metadata['keep_prefixes']) if metadata['keep_prefixes'].startswith('[') else []
-        )
-        
-        instance.model = keras_model
-        instance.selected_features = eval(metadata['selected_features']) if metadata['selected_features'].startswith('[') else []
-        instance.best_params = eval(metadata['best_params']) if metadata['best_params'] != 'None' else None
-        
-        return instance

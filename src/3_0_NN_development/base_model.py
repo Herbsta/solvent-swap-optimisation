@@ -4,7 +4,6 @@ from abc import ABC, abstractmethod
 from sklearn.model_selection import train_test_split
 from sklearn.feature_selection import SelectKBest, f_regression, RFE
 from sklearn.ensemble import RandomForestRegressor
-import json
 from skopt import gp_minimize
 from skopt.utils import use_named_args
 
@@ -316,65 +315,5 @@ class BaseModelWithFeatureSelection(ABC):
         --------
         fig : matplotlib Figure
             Figure with training history plots
-        """
-        pass
-    
-    def save_model(self, filepath):
-        """
-        Save the model to disk
-        
-        Parameters:
-        -----------
-        filepath : str
-            Path to save the model
-        """
-        if self.model is None:
-            raise ValueError("Model has not been trained. Call train() first.")
-            
-        # Save model metadata
-        metadata = {
-            'selected_features': self.selected_features,
-            'feature_selection_method': self.feature_selection_method,
-            'n_features': self.n_features,
-            'keep_prefixes': self.keep_prefixes,
-            'best_params': self.best_params
-        }
-        
-        # Save metadata as JSON
-        with open(f"{filepath}_metadata.json", 'w') as f:
-            json.dump({k: str(v) if isinstance(v, list) else v for k, v in metadata.items()}, f)
-        
-        # Model-specific saving functionality to be implemented by subclass
-        self._save_model_specific(filepath)
-        
-        print(f"Model and metadata saved to {filepath}")
-    
-    @abstractmethod
-    def _save_model_specific(self, filepath):
-        """
-        Save model-specific components
-        
-        Parameters:
-        -----------
-        filepath : str
-            Path to save the model
-        """
-        pass
-    
-    @classmethod
-    @abstractmethod
-    def load_model(cls, filepath):
-        """
-        Load a saved model
-        
-        Parameters:
-        -----------
-        filepath : str
-            Path to the saved model
-            
-        Returns:
-        --------
-        model : object
-            Loaded model
         """
         pass

@@ -2,12 +2,11 @@ import numpy as np
 import matplotlib.pyplot as plt
 from sklearn.metrics import r2_score
 import tensorflow as tf
-from tensorflow.keras.models import Model, load_model
+from tensorflow.keras.models import Model
 from tensorflow.keras.layers import Dense, Dropout, Input, Lambda, Layer
 from tensorflow.keras.optimizers import Adam
 from tensorflow.keras.callbacks import EarlyStopping, ReduceLROnPlateau
 from skopt.space import Real, Integer
-import json
 
 from base_model import BaseModelWithFeatureSelection
 
@@ -45,7 +44,7 @@ class KLDivergenceLayer(Layer):
         config.update({'weight': self.weight})
         return config
 
-class VariationalAutoencoderWithFeatureSelection(BaseModelWithFeatureSelection):
+class VAEWithFeatureSelection(BaseModelWithFeatureSelection):
     """
     Variational Autoencoder model with feature selection capabilities.
     Can be used as a drop-in replacement for NeuralNetworkWithFeatureSelection.
@@ -443,58 +442,3 @@ class VariationalAutoencoderWithFeatureSelection(BaseModelWithFeatureSelection):
         plt.show()
         
         return fig
-    
-    def _save_model_specific(self, filepath):
-        """Save VAE specific components"""
-        # Save full model
-        self.model.save(filepath)
-        
-        # Save encoder and decoder separately for convenience
-        if self.encoder is not None:
-            self.encoder.save(f"{filepath}_encoder")
-        if self.decoder is not None:
-            self.decoder.save(f"{filepath}_decoder")
-    
-    @classmethod
-    def load_model(cls, filepath):
-        """Load a saved VAE model"""
-        # Load custom layer
-        custom_objects = {
-            "Sampling": Sampling,
-            "KLDivergenceLayer": KLDivergenceLayer
-        }
-        
-        # Load full model, encoder and decoder
-        model = load_model(filepath, custom_objects=custom_objects)
-        encoder = None
-        decoder = None
-        
-        try:
-            encoder = load_model(f"{filepath}_encoder", custom_objects=custom_objects)
-            decoder = load_model(f"{filepath}_decoder", custom_objects=custom_objects)
-        except:
-            print("Warning: Could not load separate encoder/decoder models.")
-        
-        # Load metadata
-        with open(f"{filepath}_metadata.json", 'r') as f:
-            metadata = json.load(f)
-        
-        # Create instance and set attributes
-        instance = cls(
-            feature_selection_method=metadata['feature_selection_method'],
-            n_features=metadata['n_features'],
-            keep_prefixes=eval(metadata['keep_prefixes']) if metadata['keep_prefixes'].startswith('[') else []
-        )
-        
-        instance.model = model
-        instance.encoder = encoder
-        instance.decoder = decoder
-        instance.selected_features = eval(metadata['selected_features']) if metadata['selected_features'].startswith('[') else []
-        instance.best_params = eval(metadata['best_params']) if metadata['best_params'] != 'None' else None
-        
-        # Set VAE-specific params from best_params if available
-        if instance.best_params:
-            instance.latent_dim = instance.best_params.get('latent_dim', 10)
-            instance.kl_weight = instance.best_params.get('kl_weight', 0.001)
-        
-        return instance

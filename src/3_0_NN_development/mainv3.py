@@ -2,6 +2,7 @@ from data_module import DataProcessor
 from sklearn.model_selection import train_test_split
 from feature_module import FeatureProcessor
 from neural_network_model import NeuralNetworkWithFeatureSelection
+import pickle
 
 import numpy as np
 import pandas as pd
@@ -230,6 +231,39 @@ class SystemDesign:
         print(f"MAE in original scale - J0: {mae_original[0]:.2f}, J1: {mae_original[1]:.2f}, J2: {mae_original[2]:.2f}")
         
         return y_pred_original, y_test_original, mae_original
+    
+    def save(self, filepath):
+        """
+        Save the entire system (including trained model) using pickle
+        
+        Parameters:
+        -----------
+        filepath : str
+            Path to save the pickled system
+        """
+        with open(filepath, 'wb') as f:
+            pickle.dump(self, f)
+        print(f"System saved to {filepath}")
+    
+    @classmethod
+    def load(cls, filepath):
+        """
+        Load a saved system from pickle file
+        
+        Parameters:
+        -----------
+        filepath : str
+            Path to the saved pickle file
+            
+        Returns:
+        --------
+        system : SystemDesign
+            Loaded system with all attributes including trained model
+        """
+        with open(filepath, 'rb') as f:
+            system = pickle.load(f)
+        print(f"System loaded from {filepath}")
+        return system
 
 
 if __name__ == "__main__":
@@ -259,4 +293,8 @@ if __name__ == "__main__":
     # Get predictions and metrics
     predictions, actuals, mae = system.get_predictions_and_metrics()
     
-    system.model.save_model('trained_model.keras')
+    # Save the entire system using pickle
+    system.save('trained_system.pkl')
+    
+    # Example of how to load the system (commented out for demonstration)
+    # loaded_system = SystemDesign.load('trained_system.pkl')
