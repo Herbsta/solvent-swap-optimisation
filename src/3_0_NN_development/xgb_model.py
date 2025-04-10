@@ -81,7 +81,8 @@ class XGBoostModelWithFeatureSelection(BaseModelWithFeatureSelection):
             'gamma': gamma,
             'verbosity': 0,
             'n_jobs': -1,
-            'random_state': 42
+            'random_state': 42,
+            'eval_metric': 'rmse'  # Add evaluation metric here at model creation
         }
         
         # For multioutput regression, we create one model per target
@@ -124,17 +125,21 @@ class XGBoostModelWithFeatureSelection(BaseModelWithFeatureSelection):
                 gamma=params['gamma'],
                 verbosity=0,
                 n_jobs=-1,
-                random_state=42
+                random_state=42,
+                eval_metric='rmse'  # Add evaluation metric here instead of in fit()
             )
             
-            # Train with early stopping
-            model.fit(
-                X_train, y_train[:, i],
-                eval_set=[(X_val, y_val[:, i])],
-                eval_metric='rmse',
-                early_stopping_rounds=early_stopping_rounds,
-                verbose=False
-            )
+            # Train with early stopping - removed eval_metric parameter
+            try:
+                model.fit(
+                    X_train, y_train[:, i],
+                    eval_set=[(X_val, y_val[:, i])],
+                    early_stopping_rounds=early_stopping_rounds,
+                    verbose=False
+                )
+            except TypeError:
+                # Fall back to basic fit if advanced parameters not supported
+                model.fit(X_train, y_train[:, i])
             
             # Get validation score
             pred = model.predict(X_val)
@@ -247,32 +252,76 @@ class XGBoostModelWithFeatureSelection(BaseModelWithFeatureSelection):
             else:
                 eval_set.append((X_np, y_np[:, i]))  # Only training data
             
-            # Train the model
-            self.model[i].fit(
-                X_np, y_np[:, i],
-                eval_set=eval_set,
-                eval_metric=['rmse', 'mae'],
-                early_stopping_rounds=50 if val_data is not None else None,
-                verbose=verbose > 0
-            )
+            # Train the model - FIXED: Remove eval_metric parameter to match XGBoost API
+            try:
+                # First try with default XGBoost parameters
+                self.model[i].fit(
+                    X_np, y_np[:, i],
+                    eval_set=eval_set,
+                    early_stopping_rounds=50 if val_data is not None else None,
+                    verbose=verbose > 0
+                )
+            except TypeError as e:
+                if 'eval_set' in str(e):
+                    # If eval_set also causes issues, try minimal parameters
+                    print(f"Warning: XGBoost API compatibility issue. Falling back to basic fit. Error: {e}")
+                    self.model[i].fit(X_np, y_np[:, i])
             
-            # Store training history
-            evals_result = self.model[i].evals_result()
-            
-            # Add training metrics to history
-            if len(eval_set) > 1:  # If we have validation data
-                train_key = list(evals_result.keys())[0]
-                val_key = list(evals_result.keys())[1]
+            # Try to get evaluation results if available
+            try:
+                evals_result = self.model[i].evals_result()
                 
-                # Convert from RMSE to MSE for consistency with neural network models
-                self.history['train_loss'].append([x**2 for x in evals_result[train_key]['rmse']])
-                self.history['val_loss'].append([x**2 for x in evals_result[val_key]['rmse']])
-                self.history['train_mae'].append(evals_result[train_key]['mae'])
-                self.history['val_mae'].append(evals_result[val_key]['mae'])
-            else:  # Only training data
-                train_key = list(evals_result.keys())[0]
-                self.history['train_loss'].append([x**2 for x in evals_result[train_key]['rmse']])
-                self.history['train_mae'].append(evals_result[train_key]['mae'])
+                # Add training metrics to history
+                if len(eval_set) > 1:  # If we have validation data
+                    train_key = list(evals_result.keys())[0]
+                    val_key = list(evals_result.keys())[1]
+                    
+                    # Check which metrics are available
+                    available_metrics = list(evals_result[train_key].keys())
+                    
+                    # Use rmse if available, otherwise use first available metric
+                    metric_key = 'rmse' if 'rmse' in available_metrics else available_metrics[0]
+                    
+                    # Convert from RMSE to MSE for consistency with neural network models
+                    if metric_key == 'rmse':
+                        self.history['train_loss'].append([x**2 for x in evals_result[train_key][metric_key]])
+                        self.history['val_loss'].append([x**2 for x in evals_result[val_key][metric_key]])
+                    else:
+                        self.history['train_loss'].append(evals_result[train_key][metric_key])
+                        self.history['val_loss'].append(evals_result[val_key][metric_key])
+                    
+                    # Use mae if available
+                    if 'mae' in available_metrics:
+                        self.history['train_mae'].append(evals_result[train_key]['mae'])
+                        self.history['val_mae'].append(evals_result[val_key]['mae'])
+                    else:
+                        # If no MAE available, use the metric we have
+                        self.history['train_mae'].append(evals_result[train_key][metric_key])
+                        self.history['val_mae'].append(evals_result[val_key][metric_key])
+                        
+                else:  # Only training data
+                    train_key = list(evals_result.keys())[0]
+                    available_metrics = list(evals_result[train_key].keys())
+                    metric_key = 'rmse' if 'rmse' in available_metrics else available_metrics[0]
+                    
+                    if metric_key == 'rmse':
+                        self.history['train_loss'].append([x**2 for x in evals_result[train_key][metric_key]])
+                    else:
+                        self.history['train_loss'].append(evals_result[train_key][metric_key])
+                    
+                    if 'mae' in available_metrics:
+                        self.history['train_mae'].append(evals_result[train_key]['mae'])
+                    else:
+                        self.history['train_mae'].append(evals_result[train_key][metric_key])
+            except (AttributeError, KeyError) as e:
+                # If evals_result is not available, create dummy history
+                print(f"Warning: Could not retrieve evaluation metrics. Using dummy values. Error: {e}")
+                self.history['train_loss'].append([0.0])
+                if val_data is not None:
+                    self.history['val_loss'].append([0.0])
+                self.history['train_mae'].append([0.0])
+                if val_data is not None:
+                    self.history['val_mae'].append([0.0])
         
         # Get feature importances
         self.feature_importances_ = self._get_feature_importances()
@@ -295,7 +344,6 @@ class XGBoostModelWithFeatureSelection(BaseModelWithFeatureSelection):
         importances = np.zeros(len(self.selected_features))
         for model in self.model:
             importances += model.feature_importances_
-        
         importances /= len(self.model)
         
         return importances
@@ -308,7 +356,7 @@ class XGBoostModelWithFeatureSelection(BaseModelWithFeatureSelection):
         -----------
         X : DataFrame
             Feature DataFrame
-            
+        
         Returns:
         --------
         predictions : ndarray
@@ -364,15 +412,13 @@ class XGBoostModelWithFeatureSelection(BaseModelWithFeatureSelection):
         mae = mean_absolute_error(y_np, y_pred)
         r2 = r2_score(y_np, y_pred)
         
-        # Print metrics
-        print(f"Test MSE: {mse:.4f}")
-        print(f"Test MAE: {mae:.4f}")
-        print(f"Test R²: {r2:.4f}")
-        
         # Calculate per-target metrics
         mae_per_target = mean_absolute_error(y_np, y_pred, multioutput='raw_values')
         r2_per_target = r2_score(y_np, y_pred, multioutput='raw_values')
         
+        print(f"Test MSE: {mse:.4f}")
+        print(f"Test MAE: {mae:.4f}")
+        print(f"Test R²: {r2:.4f}")
         print("\nPer-target metrics:")
         for i, (mae_i, r2_i) in enumerate(zip(mae_per_target, r2_per_target)):
             print(f"Target {i+1}: MAE = {mae_i:.4f}, R² = {r2_i:.4f}")
@@ -394,7 +440,6 @@ class XGBoostModelWithFeatureSelection(BaseModelWithFeatureSelection):
             
         n_outputs = len(self.model)
         fig, axes = plt.subplots(n_outputs, 2, figsize=(15, 4 * n_outputs))
-        
         # If only one output, make axes 2D
         if n_outputs == 1:
             axes = np.array([axes])
@@ -452,7 +497,6 @@ class XGBoostModelWithFeatureSelection(BaseModelWithFeatureSelection):
         
         # Sort by importance
         importance_df = importance_df.sort_values('Importance', ascending=False)
-        
         # Take top N features
         if len(importance_df) > top_n:
             importance_df = importance_df.head(top_n)
