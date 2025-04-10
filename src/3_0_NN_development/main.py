@@ -240,11 +240,9 @@ class NeuralNetworkWithFeatureSelection:
         plt.tight_layout()
         plt.show()
 
-# ...existing code...
-
 class SystemDesign:
     
-    def __init__(self, system_columns, 
+    def __init__(self, system_columns=['solvent_2', 'solvent_1','temperature','compound_id'], 
                  raw_data_path='curve_fit_results_x_is_7.csv',
                  extra_fitted_points=0,
                  target_columns=['J0','J1','J2']
@@ -374,6 +372,40 @@ class SystemDesign:
         )
         
         return self.model
+    
+    def predict_model(self,x):
+        """
+        Make predictions using the trained model.
+        
+        Parameters:
+        -----------
+        x : DataFrame
+            Feature DataFrame for prediction.
+        
+        Returns:
+        --------
+        y_pred : ndarray
+            Predicted values
+        """
+        if self.model is None:
+            raise ValueError("Model has not been trained yet. Call train_model first.")
+            
+        # Transform input data
+        X_processed = self.transform_inputs(x)
+        
+        # Make predictions
+        y_pred = self.model.predict(X_processed)
+        
+        # Convert scaled predictions back to original scale
+        y_pred = self.feature_processor.output_scalar.inverse_transform(y_pred)
+        y_pred = pd.DataFrame(
+            y_pred,
+            columns=self.target_columns,
+            index=x.index
+        )
+        
+        return y_pred
+        
     
     def evaluate_model(self):
         """
