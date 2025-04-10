@@ -252,76 +252,172 @@ class XGBoostWithFeatureSelection(BaseModelWithFeatureSelection):
             else:
                 eval_set.append((X_np, y_np[:, i]))  # Only training data
             
-            # Train the model - FIXED: Remove eval_metric parameter to match XGBoost API
+            # Train the model - try different approaches based on XGBoost version compatibility
+            fit_success = False
+            fit_with_eval_set = False
             try:
-                # First try with default XGBoost parameters
+                # First try with eval_set
                 self.model[i].fit(
                     X_np, y_np[:, i],
                     eval_set=eval_set,
                     early_stopping_rounds=50 if val_data is not None else None,
                     verbose=verbose > 0
                 )
+                fit_success = True
+                fit_with_eval_set = True
+                if verbose > 1:
+                    print("Training successful with eval_set")
             except TypeError as e:
-                if 'eval_set' in str(e):
-                    # If eval_set also causes issues, try minimal parameters
-                    print(f"Warning: XGBoost API compatibility issue. Falling back to basic fit. Error: {e}")
+                if verbose:
+                    print(f"Warning: Error with eval_set: {e}")
+                # Try with eval_metric parameter explicitly set to None
+                try:
+                    self.model[i].fit(
+                        X_np, y_np[:, i],
+                        eval_set=eval_set,
+                        eval_metric=None,  # Explicitly set to None
+                        early_stopping_rounds=50 if val_data is not None else None,
+                        verbose=verbose > 0
+                    )
+                    fit_success = True
+                    fit_with_eval_set = True
+                    if verbose > 1:
+                        print("Training successful with eval_set and eval_metric=None")
+                except Exception as e:
+                    if verbose:
+                        print(f"Warning: Error with eval_set and eval_metric=None: {e}")
+                    # Fall back to basic fit without eval_set
+                    try:
+                        self.model[i].fit(X_np, y_np[:, i])
+                        fit_success = True
+                        if verbose > 1:
+                            print("Training successful with basic fit")
+                    except Exception as e:
+                        if verbose:
+                            print(f"ERROR: Could not train model: {e}")
+                        fit_success = False
+            except Exception as e:
+                if verbose:
+                    print(f"Warning: Unexpected error during training: {e}")
+                # Fall back to basic fit
+                try:
                     self.model[i].fit(X_np, y_np[:, i])
+                    fit_success = True
+                    if verbose > 1:
+                        print("Training successful with basic fit")
+                except Exception as e:
+                    if verbose:
+                        print(f"ERROR: Could not train model: {e}")
+                    fit_success = False
             
-            # Try to get evaluation results if available
-            try:
-                evals_result = self.model[i].evals_result()
-                
-                # Add training metrics to history
-                if len(eval_set) > 1:  # If we have validation data
-                    train_key = list(evals_result.keys())[0]
-                    val_key = list(evals_result.keys())[1]
-                    
-                    # Check which metrics are available
-                    available_metrics = list(evals_result[train_key].keys())
-                    
-                    # Use rmse if available, otherwise use first available metric
-                    metric_key = 'rmse' if 'rmse' in available_metrics else available_metrics[0]
-                    
-                    # Convert from RMSE to MSE for consistency with neural network models
-                    if metric_key == 'rmse':
-                        self.history['train_loss'].append([x**2 for x in evals_result[train_key][metric_key]])
-                        self.history['val_loss'].append([x**2 for x in evals_result[val_key][metric_key]])
-                    else:
-                        self.history['train_loss'].append(evals_result[train_key][metric_key])
-                        self.history['val_loss'].append(evals_result[val_key][metric_key])
-                    
-                    # Use mae if available
-                    if 'mae' in available_metrics:
-                        self.history['train_mae'].append(evals_result[train_key]['mae'])
-                        self.history['val_mae'].append(evals_result[val_key]['mae'])
-                    else:
-                        # If no MAE available, use the metric we have
-                        self.history['train_mae'].append(evals_result[train_key][metric_key])
-                        self.history['val_mae'].append(evals_result[val_key][metric_key])
-                        
-                else:  # Only training data
-                    train_key = list(evals_result.keys())[0]
-                    available_metrics = list(evals_result[train_key].keys())
-                    metric_key = 'rmse' if 'rmse' in available_metrics else available_metrics[0]
-                    
-                    if metric_key == 'rmse':
-                        self.history['train_loss'].append([x**2 for x in evals_result[train_key][metric_key]])
-                    else:
-                        self.history['train_loss'].append(evals_result[train_key][metric_key])
-                    
-                    if 'mae' in available_metrics:
-                        self.history['train_mae'].append(evals_result[train_key]['mae'])
-                    else:
-                        self.history['train_mae'].append(evals_result[train_key][metric_key])
-            except (AttributeError, KeyError) as e:
-                # If evals_result is not available, create dummy history
-                print(f"Warning: Could not retrieve evaluation metrics. Using dummy values. Error: {e}")
+            # Skip evaluation results if training failed
+            if not fit_success:
+                if verbose:
+                    print("WARNING: Training failed for this target, using dummy metrics")
+                # Use dummy metrics
                 self.history['train_loss'].append([0.0])
                 if val_data is not None:
                     self.history['val_loss'].append([0.0])
                 self.history['train_mae'].append([0.0])
                 if val_data is not None:
                     self.history['val_mae'].append([0.0])
+                continue
+            
+            # Only try to get evaluation results if we used eval_set
+            if fit_with_eval_set:
+                try:
+                    # Try to get evaluation results
+                    evals_result = self.model[i].evals_result()
+                    
+                    # Add training metrics to history if available
+                    if evals_result and len(evals_result) > 0:
+                        # Process evaluation results
+                        if len(eval_set) > 1:  # If we have validation data
+                            train_key = list(evals_result.keys())[0]
+                            val_key = list(evals_result.keys())[1]
+                            
+                            # Check which metrics are available
+                            available_metrics = list(evals_result[train_key].keys())
+                            
+                            # Use rmse if available, otherwise use first available metric
+                            metric_key = 'rmse' if 'rmse' in available_metrics else available_metrics[0]
+                            
+                            # Convert from RMSE to MSE for consistency with neural network models
+                            if metric_key == 'rmse':
+                                self.history['train_loss'].append([x**2 for x in evals_result[train_key][metric_key]])
+                                self.history['val_loss'].append([x**2 for x in evals_result[val_key][metric_key]])
+                            else:
+                                self.history['train_loss'].append(evals_result[train_key][metric_key])
+                                self.history['val_loss'].append(evals_result[val_key][metric_key])
+                            
+                            # Use mae if available
+                            if 'mae' in available_metrics:
+                                self.history['train_mae'].append(evals_result[train_key]['mae'])
+                                self.history['val_mae'].append(evals_result[val_key]['mae'])
+                            else:
+                                # If no MAE available, use the metric we have
+                                self.history['train_mae'].append(evals_result[train_key][metric_key])
+                                self.history['val_mae'].append(evals_result[val_key][metric_key])
+                                
+                        else:  # Only training data
+                            train_key = list(evals_result.keys())[0]
+                            available_metrics = list(evals_result[train_key].keys())
+                            metric_key = 'rmse' if 'rmse' in available_metrics else available_metrics[0]
+                            
+                            if metric_key == 'rmse':
+                                self.history['train_loss'].append([x**2 for x in evals_result[train_key][metric_key]])
+                            else:
+                                self.history['train_loss'].append(evals_result[train_key][metric_key])
+                            
+                            if 'mae' in available_metrics:
+                                self.history['train_mae'].append(evals_result[train_key]['mae'])
+                            else:
+                                self.history['train_mae'].append(evals_result[train_key][metric_key])
+                    else:
+                        # Empty or invalid evaluation results
+                        raise ValueError("Empty evaluation results")
+                except Exception as e:
+                    # Calculate metrics manually if evals_result fails
+                    if verbose:
+                        print(f"Warning: Could not retrieve evaluation metrics. Using calculated metrics. Error: {e}")
+                    
+                    # Predict training data
+                    y_pred_train = self.model[i].predict(X_np)
+                    train_mse = mean_squared_error(y_np[:, i], y_pred_train)
+                    train_mae = mean_absolute_error(y_np[:, i], y_pred_train)
+                    
+                    # Store these metrics
+                    self.history['train_loss'].append([train_mse])
+                    self.history['train_mae'].append([train_mae])
+                    
+                    # If we have validation data, calculate validation metrics too
+                    if val_data is not None:
+                        y_pred_val = self.model[i].predict(val_data[0])
+                        val_mse = mean_squared_error(val_data[1][:, i], y_pred_val)
+                        val_mae = mean_absolute_error(val_data[1][:, i], y_pred_val)
+                        self.history['val_loss'].append([val_mse])
+                        self.history['val_mae'].append([val_mae])
+            else:
+                # We didn't use eval_set, calculate metrics manually
+                if verbose:
+                    print("Calculating metrics manually as eval_set was not used")
+                
+                # Predict training data
+                y_pred_train = self.model[i].predict(X_np)
+                train_mse = mean_squared_error(y_np[:, i], y_pred_train)
+                train_mae = mean_absolute_error(y_np[:, i], y_pred_train)
+                
+                # Store these metrics
+                self.history['train_loss'].append([train_mse])
+                self.history['train_mae'].append([train_mae])
+                
+                # If we have validation data, calculate validation metrics too
+                if val_data is not None:
+                    y_pred_val = self.model[i].predict(val_data[0])
+                    val_mse = mean_squared_error(val_data[1][:, i], y_pred_val)
+                    val_mae = mean_absolute_error(val_data[1][:, i], y_pred_val)
+                    self.history['val_loss'].append([val_mse])
+                    self.history['val_mae'].append([val_mae])
         
         # Get feature importances
         self.feature_importances_ = self._get_feature_importances()

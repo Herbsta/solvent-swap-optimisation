@@ -7,9 +7,11 @@ from tensorflow.keras.layers import Dense, Dropout, Input, Lambda, Layer
 from tensorflow.keras.optimizers import Adam
 from tensorflow.keras.callbacks import EarlyStopping, ReduceLROnPlateau
 from skopt.space import Real, Integer
+from tensorflow.keras.saving import register_keras_serializable
 
 from base_model import BaseModelWithFeatureSelection
 
+@register_keras_serializable()
 class Sampling(Layer):
     """
     Custom layer for the reparameterization trick in VAE.
@@ -22,6 +24,7 @@ class Sampling(Layer):
         epsilon = tf.keras.backend.random_normal(shape=(batch, dim))
         return z_mean + tf.exp(0.5 * z_log_var) * epsilon
 
+@register_keras_serializable()
 class KLDivergenceLayer(Layer):
     """
     Custom layer for computing KL divergence loss.
