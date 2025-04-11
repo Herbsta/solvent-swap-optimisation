@@ -6,7 +6,7 @@ import pandas as pd
 import numpy as np
 import sqlite3
 from typing import List, Dict, Tuple, Optional, Union, Any
-from groups import ja_groups
+from groups import ja_groups, javh_groups
 
 current_folder = os.path.dirname(os.path.abspath(__file__))
 
@@ -167,7 +167,7 @@ class DataProcessor:
 
         return dataprocessor, data
     
-    def __init__(self, raw_data: pd.DataFrame = None, system_columns: List[str] = ['solvent_1','solvent_2','temperature','compound_id']):
+    def __init__(self, raw_data: pd.DataFrame = None, system_columns: List[str] = ['solvent_1','solvent_2','temperature','compound_id'], use_javh_groups: bool = False):
         """
         Initialize with raw data.
         
@@ -177,6 +177,7 @@ class DataProcessor:
         self.raw_data = raw_data
         self.processed_data = None
         self.system_columns = system_columns
+        self.group = javh_groups if use_javh_groups else ja_groups
         
     def set_raw_data(self, raw_data: pd.DataFrame) -> None:
         """
@@ -316,9 +317,12 @@ class DataProcessor:
         
         return X, y
     
-    def load_extra_solubility_data(self, num) -> pd.DataFrame:
+    def load_extra_solubility_and_temperature_data(self,num) -> pd.DataFrame:
+        pass
+    
+    def load_extra_solubility_data(self, num,weight=5) -> pd.DataFrame:
         """
-        Load additional solubility data from ja_groups based on weight_fraction range.
+        Load additional solubility data from self.groups based on weight_fraction range.
             
         Returns:
             Updated processed DataFrame with added solubility data
@@ -342,12 +346,15 @@ class DataProcessor:
         for _,row in self.processed_data.iterrows():
             group_index = row['group_index']
             
-            group = ja_groups[group_index]
+            group = self.group[group_index]
 
             column_06 = get_solubility(0.6, group)
             column_02 = get_solubility(0.2, group)    
             column_04 = get_solubility(0.4, group)
             column_08 = get_solubility(0.8, group)     
+            column_00 = get_solubility(0.0, group)
+            column_10 = get_solubility(1.0, group)
+
             row = {}
             row['group_index'] = group_index
             
@@ -365,11 +372,23 @@ class DataProcessor:
                 row['solubility_0.2'] = column_02
                 row['solubility_0.4'] = column_04
                 row['solubility_0.8'] = column_08
+            else:
+                row['solubility_0.6'] = column_06
+                row['solubility_0.2'] = column_02
+                row['solubility_0.4'] = column_04
+                row['solubility_0.8'] = column_08
+                row['solubility_0.0'] = column_00
+                row['solubility_1.0'] = column_10
                  
             filtered_data.append(row)
         
         filtered_data = pd.DataFrame(filtered_data)
-        
+
+        for i in range(1, weight + 1):
+            for col in filtered_data.columns:
+                if col.startswith('solubility_'):
+                    filtered_data[f"{col}_{i}"] = filtered_data[col]
+                
         self.processed_data = self.processed_data.merge(
             filtered_data,
             how='inner',
