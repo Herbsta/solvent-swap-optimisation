@@ -841,7 +841,7 @@ class JAVHModel(BaseModelEmpirical):
         plt.grid(True)
         plt.show()
     
-    def plot(self, n, temperature=298.15,all_experimental_data=True):
+    def plot(self, n, temperature=298.15,all_experimental_data=True, api_name=None,solvent_1_name=None):
         """Plot the Jouyban-Acree-Van't Hoff model for a specific group at a given temperature.
         
         Parameters:
@@ -888,11 +888,11 @@ class JAVHModel(BaseModelEmpirical):
                 selected[selected['temperature'] == temperature]['solvent_1_weight_fraction'], 
                 selected[selected['temperature'] == temperature]['solubility_g_g'], 
                 color='slategrey', 
-                label='Experimental Data', 
+                label='Experimental Data' if api_name is None else api_name, 
                 zorder=5
             )
         
-        plt.xlabel('Solvent 1 Weight Fraction')
+        plt.xlabel('Solvent Weight Fraction' if solvent_1_name is None else solvent_1_name)
         plt.ylabel('Solubility (g/g)')
         plt.legend()
         plt.grid(True)
