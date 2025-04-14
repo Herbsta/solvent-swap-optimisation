@@ -1,6 +1,6 @@
 venv/
 drizzle/
-output/
+# output/
 .ipynb_checkpoints/
 
 # Manim

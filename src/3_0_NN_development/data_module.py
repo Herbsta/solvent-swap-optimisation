@@ -178,6 +178,7 @@ class DataProcessor:
         self.processed_data = None
         self.system_columns = system_columns
         self.group = javh_groups if use_javh_groups else ja_groups
+        self.use_javh_groups = use_javh_groups
         
     def set_raw_data(self, raw_data: pd.DataFrame) -> None:
         """
@@ -316,11 +317,9 @@ class DataProcessor:
         y = df[target_columns]
         
         return X, y
+
     
-    def load_extra_solubility_and_temperature_data(self,num) -> pd.DataFrame:
-        pass
-    
-    def load_extra_solubility_data(self, num,weight=5) -> pd.DataFrame:
+    def load_extra_solubility_data(self, num, weight=5) -> pd.DataFrame:
         """
         Load additional solubility data from self.groups based on weight_fraction range.
             
@@ -330,73 +329,44 @@ class DataProcessor:
         if self.processed_data is None:
             raise ValueError("Processed data not available, run create_system first")
         
-        filtered_data = []
-        
         def get_solubility(weight_fraction, group_data):
-            # Extract weight fractions from the group data
             weight_fractions = group_data['solvent_1_weight_fraction']
-            
-            # Find the closest weight fraction index
             closest_idx = min(range(len(weight_fractions)), 
-                                key=lambda i: abs(weight_fractions[i] - weight_fraction))
-            
-            # Return the corresponding solubility value
+                              key=lambda i: abs(weight_fractions[i] - weight_fraction))
             return group_data['solubility_g_g'][closest_idx]
         
-        for _,row in self.processed_data.iterrows():
-            group_index = row['group_index']
-            
-            group = self.group[group_index]
-
-            column_06 = get_solubility(0.6, group)
-            column_02 = get_solubility(0.2, group)    
-            column_04 = get_solubility(0.4, group)
-            column_08 = get_solubility(0.8, group)     
-            column_00 = get_solubility(0.0, group)
-            column_10 = get_solubility(1.0, group)
-
-            row = {}
-            row['group_index'] = group_index
-            
-            if num == 1:
-                row['solubility_0.6'] = column_06
-            elif num == 2:
-                row['solubility_0.6'] = column_06
-                row['solubility_0.2'] = column_02
-            elif num == 3:
-                row['solubility_0.6'] = column_06
-                row['solubility_0.2'] = column_02
-                row['solubility_0.4'] = column_04
-            elif num == 4:
-                row['solubility_0.6'] = column_06
-                row['solubility_0.2'] = column_02
-                row['solubility_0.4'] = column_04
-                row['solubility_0.8'] = column_08
-            else:
-                row['solubility_0.6'] = column_06
-                row['solubility_0.2'] = column_02
-                row['solubility_0.4'] = column_04
-                row['solubility_0.8'] = column_08
-                row['solubility_0.0'] = column_00
-                row['solubility_1.0'] = column_10
-                 
-            filtered_data.append(row)
+        # Define weight fractions to extract based on num parameter
+        weight_fractions = {
+            1: [0.6],
+            2: [0.2, 0.6],
+            3: [0.2, 0.4, 0.6],
+            4: [0.2, 0.4, 0.6, 0.8],
+        }.get(num, [0.0, 0.2, 0.4, 0.6, 0.8, 1.0])
         
-        filtered_data = pd.DataFrame(filtered_data)
-
-        for i in range(1, weight + 1):
-            for col in filtered_data.columns:
-                if col.startswith('solubility_'):
-                    filtered_data[f"{col}_{i}"] = filtered_data[col]
+        # Create dataframe with group_index and solubility values
+        result = []
+        for _, row in self.processed_data.iterrows():
+            group_index = row['group_index']
+            group = self.group[group_index]
+            
+            data = {'group_index': group_index}
+            for wf in weight_fractions:
+                data[f'solubility_{wf}'] = get_solubility(wf, group)
                 
+            result.append(data)
+        
+        filtered_data = pd.DataFrame(result)
+        
+        # Add weighted copies of solubility columns
+        for i in range(1, weight + 1):
+            for col in [c for c in filtered_data.columns if c.startswith('solubility_')]:
+                filtered_data[f"{col}_{i}"] = filtered_data[col]
+        
+        # Merge with processed data
         self.processed_data = self.processed_data.merge(
             filtered_data,
             how='inner',
-            left_on='group_index',
-            right_on='group_index',
+            on='group_index'
         )
-                
         
         return self.processed_data
-
-        
