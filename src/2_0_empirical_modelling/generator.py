@@ -870,7 +870,7 @@ class JAVHModel(BaseModelEmpirical):
         )
 
         plt.figure(figsize=(16*1.3/3, 9*1.3/3))
-        plt.plot(x_values, jouyban_acree_VH_fit_values, label='Jouyban-Acree Model', color='blue')
+        plt.plot(x_values, jouyban_acree_VH_fit_values, label='Jouyban-Acree Model', color='red')
         
         # Add the experimental data points to the plot
         if all_experimental_data:
