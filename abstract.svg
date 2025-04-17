@@ -18,35 +18,35 @@
     <!-- Data sources icon -->
     <g transform="translate(130,140)">
         <!-- Database icons in triangle arrangement -->
-        <rect x="-80" y="-80" width="160" height="160" rx="15" fill="#ffcccb" opacity="0.9"/>
+        <rect x="-80" y="-80" width="160" height="160" rx="15" fill="#0173b2" opacity="0.9"/>
         
         <!-- Database 1 (top) -->
         <g transform="translate(-19,-35) scale(1.5)">
-            <ellipse cx="12" cy="5" rx="9" ry="3" fill="none" stroke="#333333" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-            <path d="M3 5V19A9 3 0 0 0 21 19V5" fill="none" stroke="#333333" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-            <path d="M3 12A9 3 0 0 0 21 12" fill="none" stroke="#333333" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+            <ellipse cx="12" cy="5" rx="9" ry="3" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+            <path d="M3 5V19A9 3 0 0 0 21 19V5" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+            <path d="M3 12A9 3 0 0 0 21 12" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
         </g>
         
         <!-- Database 2 (bottom left) -->
         <g transform="translate(-54,10) scale(1.5)">
-            <ellipse cx="12" cy="5" rx="9" ry="3" fill="none" stroke="#333333" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-            <path d="M3 5V19A9 3 0 0 0 21 19V5" fill="none" stroke="#333333" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-            <path d="M3 12A9 3 0 0 0 21 12" fill="none" stroke="#333333" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+            <ellipse cx="12" cy="5" rx="9" ry="3" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+            <path d="M3 5V19A9 3 0 0 0 21 19V5" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+            <path d="M3 12A9 3 0 0 0 21 12" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
         </g>
         
         <!-- Database 3 (bottom right) -->
         <g transform="translate(15,10) scale(1.5)">
-            <ellipse cx="12" cy="5" rx="9" ry="3" fill="none" stroke="#333333" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-            <path d="M3 5V19A9 3 0 0 0 21 19V5" fill="none" stroke="#333333" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-            <path d="M3 12A9 3 0 0 0 21 12" fill="none" stroke="#333333" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+            <ellipse cx="12" cy="5" rx="9" ry="3" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+            <path d="M3 5V19A9 3 0 0 0 21 19V5" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+            <path d="M3 12A9 3 0 0 0 21 12" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
         </g>
-        <text x="0" y="-55" font-family="Arial, sans-serif" font-size="16" font-weight="bold" text-anchor="middle" fill="#333333">Solubility Data</text>
-        <text x="0" y="65" font-family="Arial, sans-serif" font-size="16" text-anchor="middle" fill="#333333">ETL</text>
+        <text x="0" y="-55" font-family="Arial, sans-serif" font-size="16" font-weight="bold" text-anchor="middle" fill="white">Solubility Data</text>
+        <text x="0" y="65" font-family="Arial, sans-serif" font-size="16" text-anchor="middle" fill="white">ETL</text>
     </g>
     
     <!-- Empirical modeling (CENTERED) -->
     <g transform="translate(400,140)">
-        <rect x="-80" y="-80" width="160" height="160" rx="15" fill="#ff6b6b" opacity="0.9"/>
+        <rect x="-80" y="-80" width="160" height="160" rx="15" fill="#de8f05" opacity="0.9"/>
         <path d="M-60,35 C-40,-5 20,-35 60,-40" stroke="white" stroke-width="3" fill="none"/>
         <circle cx="-60" cy="35" r="5" fill="white"/>
         <circle cx="60" cy="-40" r="5" fill="white"/>
@@ -61,7 +61,7 @@
     
     <!-- ML prediction -->
     <g transform="translate(670,140)">
-        <rect x="-80" y="-80" width="160" height="160" rx="15" fill="#d63031" opacity="0.9"/>
+        <rect x="-80" y="-80" width="160" height="160" rx="15" fill="#029e73" opacity="0.9"/>
         <circle cx="-40" cy="-30" r="10" fill="#ffffff" opacity="0.7"/>
         <circle cx="0" cy="-30" r="10" fill="#ffffff" opacity="0.7"/>
         <circle cx="40" cy="-30" r="10" fill="#ffffff" opacity="0.7"/>
