@@ -562,7 +562,7 @@ class JAModel(BaseModelEmpirical):
         print(f"curve_fit_results_x_is_{self.JA_number}.csv")
     
     
-    def plot(self, n):
+    def plot(self, n,api_name=None,solvent_1_name=None,color='red',api='Experiemental Data Points'):
         """Plot the experimental data and fitted model for a specific group.
         
         Parameters:
@@ -592,13 +592,12 @@ class JAModel(BaseModelEmpirical):
 
         # Plot the JA model
         plt.figure(figsize=(16*1.3/3, 9*1.3/3))
-        plt.plot(x_values, jouyban_acree_fit_values, label='Jouyban-Acree Model', color='blue')
+        plt.plot(x_values, jouyban_acree_fit_values, label='Jouyban-Acree Model', color=color)
 
         # Add the experimental data points to the plot
-        plt.scatter(selected['solvent_1_weight_fraction'], selected['solubility_g_g'], color='red', label='Experimental Data', zorder=5)
-        plt.xlabel('Solvent 1 Weight Fraction')
+        plt.scatter(selected['solvent_1_weight_fraction'], selected['solubility_g_g'], color='gray', label=api, zorder=5)
+        plt.xlabel(solvent_1_name)
         plt.ylabel('Solubility (g/g)')
-        plt.title('Solubility vs Solvent 1 Weight Fraction (JA Model)')
         plt.legend()
         plt.grid(True)
         plt.show()
@@ -841,7 +840,7 @@ class JAVHModel(BaseModelEmpirical):
         plt.grid(True)
         plt.show()
     
-    def plot(self, n, temperature=298.15,all_experimental_data=True, api_name=None,solvent_1_name=None):
+    def plot(self, n, temperature=298.15,all_experimental_data=True, api_name=None,solvent_1_name=None,color='red'):
         """Plot the Jouyban-Acree-Van't Hoff model for a specific group at a given temperature.
         
         Parameters:
@@ -870,7 +869,7 @@ class JAVHModel(BaseModelEmpirical):
         )
 
         plt.figure(figsize=(16*1.3/3, 9*1.3/3))
-        plt.plot(x_values, jouyban_acree_VH_fit_values, label='Jouyban-Acree Model', color='red')
+        plt.plot(x_values, jouyban_acree_VH_fit_values, label='Jouyban-Acree Model', color=color)
         
         # Add the experimental data points to the plot
         if all_experimental_data:
