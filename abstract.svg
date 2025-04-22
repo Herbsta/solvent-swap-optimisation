@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<svg viewBox="0 0 800 340" xmlns="http://www.w3.org/2000/svg">
+<svg viewBox="50 60 700 200" xmlns="http://www.w3.org/2000/svg">
     <!-- Background -->
-    <rect y='0' width="800" height="340" fill="#f8f9fa" rx="10" ry="10"/>
+    <!-- <rect y='0' width="800" height="340" fill="#f8f9fa" rx="10" ry="10"/> -->
         
     <!-- Flow arrows -->
     <path d="M220,140 L300,140" stroke="#777777" stroke-width="3" fill="none" marker-end="url(#arrow)"/>
@@ -99,5 +99,5 @@
     <text x="670" y="250" font-family="Arial, sans-serif" font-size="14" text-anchor="middle" fill="#777777">Prediction &amp; Validation</text>
     
     <!-- Bottom line -->
-    <text x="400" y="290" font-family="Arial, sans-serif" font-size="18" font-style="italic" text-anchor="middle" fill="#333333">Predicting Solubility in Binary Solvent Systems</text>
+    <!-- <text x="400" y="290" font-family="Arial, sans-serif" font-size="18" font-style="italic" text-anchor="middle" fill="#333333">Predicting Solubility in Binary Solvent Systems</text> -->
 </svg>
