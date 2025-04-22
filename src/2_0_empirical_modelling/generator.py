@@ -562,11 +562,19 @@ class JAModel(BaseModelEmpirical):
         print(f"curve_fit_results_x_is_{self.JA_number}.csv")
     
     
-    def plot(self, n,api_name=None,solvent_1_name=None,color='red',api='Experiemental Data Points'):
+    def plot(self, n, api_name=None, solvent_1_name=None, color='red', api='Experimental Data Points', ax=None):
         """Plot the experimental data and fitted model for a specific group.
         
         Parameters:
         n (int): Index of the group to plot
+        api_name (str): Optional name for the API
+        solvent_1_name (str): Optional label for x-axis
+        color (str): Color for the JA model line
+        api (str): Label for experimental data points
+        ax (matplotlib.axes.Axes): If provided, plot on this axis instead of creating a new figure
+        
+        Returns:
+        matplotlib.axes.Axes: The axis with the plot
         """
         if self.results_df is None:
             raise ValueError("No results available. Please run the curve_fitter method first.")
@@ -589,18 +597,27 @@ class JAModel(BaseModelEmpirical):
             specific_temperature, 
             J0, J1, J2
         )
-
-        # Plot the JA model
-        plt.figure(figsize=(16*1.3/3, 9*1.3/3))
-        plt.plot(x_values, jouyban_acree_fit_values, label='Jouyban-Acree Model', color=color)
+        
+        # Create a new figure if ax is not provided
+        if ax is None:
+            fig, ax = plt.subplots(figsize=(16*1.3/3, 9*1.3/3))
+        
+        # Plot on the provided or newly created axis
+        ax.plot(x_values, jouyban_acree_fit_values, label='Jouyban-Acree Model', color=color)
 
         # Add the experimental data points to the plot
-        plt.scatter(selected['solvent_1_weight_fraction'], selected['solubility_g_g'], color='gray', label=api, zorder=5)
-        plt.xlabel(solvent_1_name)
-        plt.ylabel('Solubility (g/g)')
-        plt.legend()
-        plt.grid(True)
-        plt.show()
+        ax.scatter(selected['solvent_1_weight_fraction'], selected['solubility_g_g'], color='gray', label=api, zorder=5)
+        ax.set_xlabel(solvent_1_name)
+        ax.set_ylabel('Solubility (g/g)')
+
+        ax.legend()
+        ax.grid(True)
+        
+        # Only show the plot if we created a new figure
+        if ax is None:
+            plt.show()
+            
+        return ax
 
 
 #----------------------------
@@ -840,12 +857,20 @@ class JAVHModel(BaseModelEmpirical):
         plt.grid(True)
         plt.show()
     
-    def plot(self, n, temperature=298.15,all_experimental_data=True, api_name=None,solvent_1_name=None,color='red'):
+    def plot(self, n, temperature=298.15, all_experimental_data=True, api_name=None, solvent_1_name=None, color='red', ax=None):
         """Plot the Jouyban-Acree-Van't Hoff model for a specific group at a given temperature.
         
         Parameters:
         n (int): Index of the group to plot
         temperature (float): Temperature in Kelvin for which to plot the model
+        all_experimental_data (bool): If True, plot all experimental data points, otherwise only those at specified temperature
+        api_name (str): Name to display for API in legend, if None uses default
+        solvent_1_name (str): Name to display for solvent x-axis, if None uses default
+        color (str): Color for the model line
+        ax (matplotlib.axes.Axes): If provided, plot on this axis instead of creating a new figure
+        
+        Returns:
+        matplotlib.axes.Axes: The axis with the plot
         """
         if self.results_df is None:
             raise ValueError("No results available. Please run the curve_fitter method first.")
@@ -867,13 +892,17 @@ class JAVHModel(BaseModelEmpirical):
         jouyban_acree_VH_fit_values = javh_model.predict(
             x_values, temps, alpha1, beta1, alpha2, beta2, J0, J1, J2
         )
-
-        plt.figure(figsize=(16*1.3/3, 9*1.3/3))
-        plt.plot(x_values, jouyban_acree_VH_fit_values, label='Jouyban-Acree Model', color=color)
+        
+        # Create a new figure if ax is not provided
+        if ax is None:
+            fig, ax = plt.subplots(figsize=(16*1.3/3, 9*1.3/3))
+        
+        # Plot on the provided or newly created axis
+        ax.plot(x_values, jouyban_acree_VH_fit_values, label='Jouyban-Acree Model', color=color)
         
         # Add the experimental data points to the plot
         if all_experimental_data:
-            scatter = plt.scatter(
+            scatter = ax.scatter(
                 selected['solvent_1_weight_fraction'], 
                 selected['solubility_g_g'], 
                 c=selected['temperature'], 
@@ -881,9 +910,9 @@ class JAVHModel(BaseModelEmpirical):
                 label='Experimental Data', 
                 zorder=5
             )
-            plt.colorbar(scatter, label='Temperature (K)', ticks=selected['temperature'].unique())
+            plt.colorbar(scatter, ax=ax, label='Temperature (K)', ticks=selected['temperature'].unique())
         else:
-            scatter = plt.scatter(
+            scatter = ax.scatter(
                 selected[selected['temperature'] == temperature]['solvent_1_weight_fraction'], 
                 selected[selected['temperature'] == temperature]['solubility_g_g'], 
                 color='slategrey', 
@@ -891,11 +920,16 @@ class JAVHModel(BaseModelEmpirical):
                 zorder=5
             )
         
-        plt.xlabel('Solvent Weight Fraction' if solvent_1_name is None else solvent_1_name)
-        plt.ylabel('Solubility (g/g)')
-        plt.legend()
-        plt.grid(True)
-        plt.show()
+        ax.set_xlabel('Solvent Weight Fraction' if solvent_1_name is None else solvent_1_name)
+        ax.set_ylabel('Solubility (g/g)')
+        ax.legend()
+        ax.grid(True)
+        
+        # Only show the plot if we created a new figure
+        if ax is None:
+            plt.show()
+            
+        return ax
 
 
 #----------------------------
